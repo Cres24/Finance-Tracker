@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/6.1/ref/settings/
 """
 
 from pathlib import Path
+from urllib.parse import quote_plus
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -30,13 +31,14 @@ ALLOWED_HOSTS = []
 
 # Application definition
 
+# mysite/settings.py
 INSTALLED_APPS = [
-    'django.contrib.admin',
-    'django.contrib.auth',
-    'django.contrib.contenttypes',
-    'django.contrib.sessions',
-    'django.contrib.messages',
-    'django.contrib.staticfiles',
+    "mysite.apps.MongoAdminConfig",         # Replaces "django.contrib.admin"
+    "mysite.apps.MongoAuthConfig",          # Replaces "django.contrib.auth"
+    "mysite.apps.MongoContentTypesConfig",  # Replaces "django.contrib.contenttypes"
+    "django.contrib.sessions",
+    "django.contrib.messages",
+    "django.contrib.staticfiles",
 ]
 
 MIDDLEWARE = [
@@ -72,13 +74,15 @@ WSGI_APPLICATION = 'mysite.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/6.1/ref/settings/#databases
 
+# settings.py
+# settings.py
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+    "default": {
+        "ENGINE": "django_mongodb_backend",
+        "HOST": "mongodb+srv://Rachit:Fuck@Boy666@cluster0.YOUR_REAL_ID.mongodb.net/?retryWrites=true&w=majority",
+        "NAME": "finance_tracker_db",
     }
 }
-
 
 # Password validation
 # https://docs.djangoproject.com/en/6.1/ref/settings/#auth-password-validators
@@ -125,3 +129,4 @@ MAILERS = {
         'BACKEND': 'django.core.mail.backends.console.EmailBackend',
     },
 }
+DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
