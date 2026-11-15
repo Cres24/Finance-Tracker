@@ -34,6 +34,7 @@ ALLOWED_HOSTS = []
 
 # mysite/settings.py
 # mysite/settings.py
+# mysite/settings.py
 INSTALLED_APPS = [
     "django_mongodb_backend",
     "mysite.apps.MongoAdminConfig",
@@ -42,6 +43,7 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "tracker",
 ]
 
 MIDDLEWARE = [
