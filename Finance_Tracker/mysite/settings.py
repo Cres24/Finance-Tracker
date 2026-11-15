@@ -13,6 +13,7 @@ https://docs.djangoproject.com/en/6.1/ref/settings/
 from pathlib import Path
 from urllib.parse import quote_plus
 
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -32,10 +33,12 @@ ALLOWED_HOSTS = []
 # Application definition
 
 # mysite/settings.py
+# mysite/settings.py
 INSTALLED_APPS = [
-    "mysite.apps.MongoAdminConfig",         # Replaces "django.contrib.admin"
-    "mysite.apps.MongoAuthConfig",          # Replaces "django.contrib.auth"
-    "mysite.apps.MongoContentTypesConfig",  # Replaces "django.contrib.contenttypes"
+    "django_mongodb_backend",
+    "mysite.apps.MongoAdminConfig",
+    "mysite.apps.MongoAuthConfig",
+    "mysite.apps.MongoContentTypesConfig",
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
@@ -70,19 +73,27 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'mysite.wsgi.application'
 
+# mysite/settings.py
+MIGRATION_MODULES = {
+    "admin": "mongo_migrations.admin",
+    "auth": "mongo_migrations.auth",
+    "contenttypes": "mongo_migrations.contenttypes",
+}
 
 # Database
 # https://docs.djangoproject.com/en/6.1/ref/settings/#databases
 
-# settings.py
-# settings.py
+
 DATABASES = {
     "default": {
         "ENGINE": "django_mongodb_backend",
-        "HOST": "mongodb+srv://Rachit:Fuck@Boy666@cluster0.YOUR_REAL_ID.mongodb.net/?retryWrites=true&w=majority",
+        "HOST": "mongodb+srv://<Rachit>:<FinanceTracker>@cluster0.nks7sgj.mongodb.net/",
         "NAME": "finance_tracker_db",
+        "USER": "Rachit",
+        "PASSWORD": "FinanceTracker",
     }
 }
+
 
 # Password validation
 # https://docs.djangoproject.com/en/6.1/ref/settings/#auth-password-validators
