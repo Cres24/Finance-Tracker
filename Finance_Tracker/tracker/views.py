@@ -1,143 +1,177 @@
+# tracker/views.py
 from collections import defaultdict
-from datetime import date, datetime, time
 from decimal import Decimal
 
-from django.contrib.auth.models import User
 from django.utils import timezone
-from rest_framework import serializers, status
+from rest_framework import status, viewsets
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
 from .models import Budget, Category, Expense, Income
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated
-from rest_framework.response import Response
-from .models import Category, Expense
-from rest_framework import viewsets
-from rest_framework.permissions import IsAuthenticated
-from .models import Category, Income, Expense
-from .serializers import CategorySerializer, IncomeSerializer, ExpenseSerializer
-
-
-class RegisterSerializer(serializers.ModelSerializer):
-    password = serializers.CharField(write_only=True, min_length=8)
-
-    class Meta:
-        model = User
-        fields = ["username", "email", "password"]
-
-    def create(self, validated_data):
-        return User.objects.create_user(**validated_data)
+from .serializers import (
+    BudgetSerializer,
+    CategorySerializer,
+    ExpenseSerializer,
+    IncomeSerializer,
+    RegisterSerializer,
+)
 
 
 @api_view(["POST"])
 @permission_classes([AllowAny])
 def register(request):
     serializer = RegisterSerializer(data=request.data)
-    serializer.is_valid(raise_exception=True)
-    serializer.save()
-    return Response({"detail": "Account created"}, status=status.HTTP_201_CREATED)
+    if serializer.is_valid():
+        user = serializer.save()
+        return Response(
+            {
+                "id": str(user.id),
+                "username": user.username,
+                "email": user.email,
+            },
+            status=status.HTTP_201_CREATED,
+        )
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def me(request):
-    return Response({"username": request.user.username, "email": request.user.email})
+    user = request.user
+    return Response(
+        {
+            "id": str(user.id),
+            "username": user.username,
+            "email": user.email,
+        }
+    )
 
 
-def _month_bounds(today):
-    start = today.replace(day=1)
-    if start.month == 12:
-        end = date(start.year + 1, 1, 1)
-    else:
-        end = date(start.year, start.month + 1, 1)
-    return start, end
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def tracker_choices(request):
+    return Response(
+        {
+            "buckets": [{"value": k, "label": v} for k, v in Category.BUCKET_CHOICES],
+            "habit_tags": [{"value": k, "label": v} for k, v in Expense.HABIT_TAGS],
+            "payment_modes": [{"value": k, "label": v} for k, v in Expense.PAYMENT_MODES],
+        }
+    )
 
 
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def dashboard(request):
     user = request.user
-    today = timezone.localdate()
-    start, end = _month_bounds(today)
-    start_dt = timezone.make_aware(datetime.combine(start, time.min))
-    end_dt = timezone.make_aware(datetime.combine(end, time.min))
+    now = timezone.localtime(timezone.now())
 
-    incomes = list(
-        Income.objects.filter(
-            user=user, date_received__gte=start, date_received__lt=end
+    # Optional ?month=YYYY-MM query param (defaults to current month)
+    month_param = request.query_params.get("month")
+    if month_param:
+        try:
+            year_str, month_str = month_param.split("-")
+            year, month = int(year_str), int(month_str)
+        except ValueError:
+            return Response(
+                {"detail": "Invalid month format. Use YYYY-MM."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+    else:
+        year, month = now.year, now.month
+
+    month_start = now.date().replace(year=year, month=month, day=1)
+
+    # Fetch user records (aggregated in Python for full django-mongodb-backend compatibility)
+    incomes = list(Income.objects.filter(user=user, date_received__year=year, date_received__month=month))
+    expenses = list(
+        Expense.objects.select_related("category").filter(
+            user=user, spent_at__year=year, spent_at__month=month
         )
     )
-    expenses = list(
-        Expense.objects.filter(
-            user=user, spent_at__gte=start_dt, spent_at__lt=end_dt
-        ).order_by("-spent_at")
-    )
-    categories = {c.pk: c for c in Category.objects.filter(user=user)}
-    budgets_qs = Budget.objects.filter(user=user, month__gte=start, month__lt=end)
-    budgets = {b.bucket: b.limit_amount for b in budgets_qs}
+    budgets = list(Budget.objects.filter(user=user, month=month_start))
 
-    total_income = sum((i.amount for i in incomes), Decimal("0"))
-    total_expenses = sum((e.amount for e in expenses), Decimal("0"))
+    total_income = sum((item.amount for item in incomes), Decimal("0.00"))
+    total_expense = sum((item.amount for item in expenses), Decimal("0.00"))
+    net_savings = total_income - total_expense
 
-    spent_by_bucket = defaultdict(lambda: Decimal("0"))
-    spent_by_habit = defaultdict(lambda: Decimal("0"))
-    for e in expenses:
-        cat = categories.get(e.category_id)
-        if cat:
-            spent_by_bucket[cat.bucket] += e.amount
-        spent_by_habit[e.habit_tag] += e.amount
+    # Income breakdown by source
+    income_by_source_map = defaultdict(lambda: Decimal("0.00"))
+    for inc in incomes:
+        income_by_source_map[inc.source] += inc.amount
 
-    buckets = [
+    # Expense breakdown by category bucket & spending habit
+    spend_by_bucket = defaultdict(lambda: Decimal("0.00"))
+    spend_by_habit = defaultdict(lambda: Decimal("0.00"))
+    spend_by_payment_mode = defaultdict(lambda: Decimal("0.00"))
+    merchant_totals = defaultdict(lambda: Decimal("0.00"))
+
+    for exp in expenses:
+        spend_by_bucket[exp.category.bucket] += exp.amount
+        spend_by_habit[exp.habit_tag] += exp.amount
+        spend_by_payment_mode[exp.payment_mode] += exp.amount
+        if exp.merchant:
+            merchant_totals[exp.merchant] += exp.amount
+
+    # Budget vs. actual per bucket
+    budget_map = {b.bucket: b.limit_amount for b in budgets}
+    budget_comparison = []
+    for bucket_key, bucket_label in Category.BUCKET_CHOICES:
+        limit_val = budget_map.get(bucket_key, Decimal("0.00"))
+        spent_val = spend_by_bucket.get(bucket_key, Decimal("0.00"))
+        budget_comparison.append(
+            {
+                "bucket": bucket_key,
+                "label": bucket_label,
+                "budget_limit": float(limit_val),
+                "spent": float(spent_val),
+                "remaining": float(limit_val - spent_val),
+            }
+        )
+
+    habit_breakdown = [
         {
-            "bucket": key,
-            "label": label,
-            "spent": float(spent_by_bucket[key]),
-            "limit": float(budgets[key]) if key in budgets else None,
+            "habit_tag": habit_key,
+            "label": habit_label,
+            "total": float(spend_by_habit.get(habit_key, Decimal("0.00"))),
         }
-        for key, label in Category.BUCKET_CHOICES
+        for habit_key, habit_label in Expense.HABIT_TAGS
     ]
-    habits = [
-        {"tag": key, "label": label, "spent": float(spent_by_habit[key])}
-        for key, label in Expense.HABIT_TAGS
-    ]
-    recent = [
-        {
-            "id": str(e.pk),
-            "description": e.merchant
-            or (categories[e.category_id].name if e.category_id in categories else "Expense"),
-            "category": categories[e.category_id].name if e.category_id in categories else "",
-            "amount": float(e.amount),
-            "date": timezone.localtime(e.spent_at).strftime("%d %b"),
-            "payment_mode": e.get_payment_mode_display(),
-        }
-        for e in expenses[:8]
-    ]
+
+    top_merchants = sorted(
+        [{"merchant": m, "total": float(amt)} for m, amt in merchant_totals.items()],
+        key=lambda x: x["total"],
+        reverse=True,
+    )[:5]
+
+    recent_expenses = ExpenseSerializer(
+        sorted(expenses, key=lambda e: e.spent_at, reverse=True)[:10],
+        many=True,
+        context={"request": request},
+    ).data
 
     return Response(
         {
-            "month": start.strftime("%B %Y"),
-            "income": float(total_income),
-            "expenses": float(total_expenses),
-            "balance": float(total_income - total_expenses),
-            "buckets": buckets,
-            "habits": habits,
-            "recent": recent,
+            "month": f"{year:04d}-{month:02d}",
+            "summary": {
+                "total_income": float(total_income),
+                "total_expense": float(total_expense),
+                "net_savings": float(net_savings),
+            },
+            "budget_comparison": budget_comparison,
+            "habit_breakdown": habit_breakdown,
+            "income_by_source": [
+                {"source": src, "total": float(amt)}
+                for src, amt in income_by_source_map.items()
+            ],
+            "payment_mode_breakdown": [
+                {"payment_mode": mode, "total": float(amt)}
+                for mode, amt in spend_by_payment_mode.items()
+            ],
+            "top_merchants": top_merchants,
+            "recent_expenses": recent_expenses,
         }
     )
-@api_view(["GET"])
-@permission_classes([IsAuthenticated])
-def tracker_choices(request):
-    return Response({
-        "buckets": [{"value": k, "label": v} for k, v in Category.BUCKET_CHOICES],
-        "habit_tags": [{"value": k, "label": v} for k, v in Expense.HABIT_TAGS],
-        "payment_modes": [{"value": k, "label": v} for k, v in Expense.PAYMENT_MODES],
-    })
-from rest_framework import viewsets
-from rest_framework.permissions import IsAuthenticated
-from .models import Category, Income, Expense
-from .serializers import CategorySerializer, IncomeSerializer, ExpenseSerializer
 
 
 class CategoryViewSet(viewsets.ModelViewSet):
@@ -145,7 +179,7 @@ class CategoryViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        return Category.objects.filter(user=self.request.user)
+        return Category.objects.filter(user=self.request.user).order_by("bucket", "name")
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
@@ -162,12 +196,37 @@ class IncomeViewSet(viewsets.ModelViewSet):
         serializer.save(user=self.request.user)
 
 
+class BudgetViewSet(viewsets.ModelViewSet):
+    serializer_class = BudgetSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return Budget.objects.filter(user=self.request.user).order_by("-month")
+
+    def perform_create(self, serializer):
+        # Update existing budget if one already exists for the same bucket & month
+        bucket = serializer.validated_data["bucket"]
+        month = serializer.validated_data["month"]
+        limit_amount = serializer.validated_data["limit_amount"]
+        budget, _ = Budget.objects.update_or_create(
+            user=self.request.user,
+            bucket=bucket,
+            month=month,
+            defaults={"limit_amount": limit_amount},
+        )
+        serializer.instance = budget
+
+
 class ExpenseViewSet(viewsets.ModelViewSet):
     serializer_class = ExpenseSerializer
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        return Expense.objects.filter(user=self.request.user).order_by("-spent_at")
+        return (
+            Expense.objects.select_related("category")
+            .filter(user=self.request.user)
+            .order_by("-spent_at")
+        )
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
