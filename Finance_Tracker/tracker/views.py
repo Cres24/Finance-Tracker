@@ -10,6 +10,10 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
 from .models import Budget, Category, Expense, Income
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from .models import Category, Expense
 
 
 class RegisterSerializer(serializers.ModelSerializer):
@@ -118,4 +122,11 @@ def dashboard(request):
             "recent": recent,
         }
     )
-
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def tracker_choices(request):
+    return Response({
+        "buckets": [{"value": k, "label": v} for k, v in Category.BUCKET_CHOICES],
+        "habit_tags": [{"value": k, "label": v} for k, v in Expense.HABIT_TAGS],
+        "payment_modes": [{"value": k, "label": v} for k, v in Expense.PAYMENT_MODES],
+    })
