@@ -34,14 +34,11 @@ export default function Dashboard() {
   const [categories, setCategories] = useState([])
   const [error, setError] = useState('')
 
-  // Toggle inline forms inside their respective columns
   const [showIncomeForm, setShowIncomeForm] = useState(false)
   const [showExpenseForm, setShowExpenseForm] = useState(false)
-  const [showNewCat, setShowNewCat] = useState(false)
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState('')
 
-  // Income form state
   const [incomeForm, setIncomeForm] = useState({
     source: '',
     amount: '',
@@ -49,12 +46,10 @@ export default function Dashboard() {
     is_recurring: false,
   })
 
-  // Quick category state (if user has no categories yet)
-  const [newCat, setNewCat] = useState({ name: '', bucket: 'essentials' })
-
-  // Expense form state
   const [expenseForm, setExpenseForm] = useState({
     category: '',
+    customCategoryName: '',
+    customBucket: 'essentials',
     amount: '',
     merchant: '',
     payment_mode: 'upi',
@@ -79,8 +74,6 @@ export default function Dashboard() {
             ...prev,
             category: prev.category || String(catList[0].id),
           }))
-        } else {
-          setShowNewCat(true)
         }
       } catch (err) {
         if (ignore) return
@@ -127,44 +120,53 @@ export default function Dashboard() {
     }
   }
 
-  const handleCreateCategory = async (e) => {
-    e.preventDefault()
-    if (!newCat.name.trim()) return
-    setSaving(true)
-    setFormError('')
-    try {
-      const res = await api.post('/categories/', newCat)
-      setCategories((prev) => [...prev, res.data])
-      setExpenseForm((prev) => ({ ...prev, category: String(res.data.id) }))
-      setNewCat({ name: '', bucket: 'essentials' })
-      setShowNewCat(false)
-    } catch {
-      setFormError('Could not create category (it may already exist).')
-    } finally {
-      setSaving(false)
-    }
-  }
-
   const handleAddExpense = async (e) => {
     e.preventDefault()
     setSaving(true)
     setFormError('')
     try {
+      let categoryId = expenseForm.category
+
+      // If user chose "+ Custom category..." or no category ID exists yet, create it seamlessly first
+      if (categoryId === '__custom__' || !categoryId) {
+        const nameToUse =
+          expenseForm.customCategoryName.trim() ||
+          expenseForm.customBucket.charAt(0).toUpperCase() + expenseForm.customBucket.slice(1)
+        const existing = categories.find(
+          (c) => c.name.toLowerCase() === nameToUse.toLowerCase()
+        )
+        if (existing) {
+          categoryId = String(existing.id)
+        } else {
+          const catRes = await api.post('/categories/', {
+            name: nameToUse,
+            bucket: expenseForm.customBucket,
+          })
+          categoryId = String(catRes.data.id)
+        }
+      }
+
       await api.post('/expenses/', {
-        ...expenseForm,
+        category: categoryId,
         amount: parseFloat(expenseForm.amount),
+        merchant: expenseForm.merchant,
+        payment_mode: expenseForm.payment_mode,
+        habit_tag: expenseForm.habit_tag,
         spent_at: new Date(expenseForm.spent_at).toISOString(),
       })
+
       setExpenseForm((prev) => ({
         ...prev,
         amount: '',
         merchant: '',
+        customCategoryName: '',
+        category: categoryId,
         spent_at: new Date().toISOString().slice(0, 16),
       }))
       setShowExpenseForm(false)
       await loadDashboard()
     } catch {
-      setFormError('Failed to save expense. Make sure a category is selected.')
+      setFormError('Failed to save expense. Check all fields.')
     } finally {
       setSaving(false)
     }
@@ -360,133 +362,106 @@ export default function Dashboard() {
               </div>
 
               {showExpenseForm && (
-                <div style={styles.inlineForm}>
-                  {showNewCat ? (
-                    <form onSubmit={handleCreateCategory} style={styles.catBox}>
-                      <small>
-                        <strong>Create a category first:</strong>
-                      </small>
-                      <div style={styles.twoCol}>
-                        <input
-                          type="text"
-                          required
-                          placeholder="e.g. Groceries, SIP"
-                          value={newCat.name}
-                          onChange={(e) => setNewCat({ ...newCat, name: e.target.value })}
-                        />
-                        <select
-                          value={newCat.bucket}
-                          onChange={(e) => setNewCat({ ...newCat, bucket: e.target.value })}
-                        >
-                          <option value="essentials">Essentials</option>
-                          <option value="investment">Investment</option>
-                          <option value="miscellaneous">Miscellaneous</option>
-                        </select>
-                      </div>
-                      <div style={{ display: 'flex', gap: '0.5rem' }}>
-                        <button type="submit" disabled={saving} style={styles.smallBtn}>
-                          Save Category
-                        </button>
-                        {categories.length > 0 && (
-                          <button
-                            type="button"
-                            className="logout"
-                            style={styles.smallBtn}
-                            onClick={() => setShowNewCat(false)}
-                          >
-                            Back
-                          </button>
-                        )}
-                      </div>
-                    </form>
-                  ) : (
-                    <form onSubmit={handleAddExpense} style={styles.inlineFormInner}>
-                      <div style={{ display: 'flex', gap: '0.5rem' }}>
-                        <select
-                          required
-                          style={{ flex: 1 }}
-                          value={expenseForm.category}
-                          onChange={(e) =>
-                            setExpenseForm({ ...expenseForm, category: e.target.value })
-                          }
-                        >
-                          {categories.map((cat) => (
-                            <option key={cat.id} value={cat.id}>
-                              {cat.name} ({cat.bucket})
-                            </option>
-                          ))}
-                        </select>
-                        <button
-                          type="button"
-                          className="logout"
-                          style={styles.smallBtn}
-                          onClick={() => setShowNewCat(true)}
-                        >
-                          + Cat
-                        </button>
-                      </div>
+                <form onSubmit={handleAddExpense} style={styles.inlineForm}>
+                  <div style={styles.twoCol}>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0.01"
+                      required
+                      placeholder="Amount spent"
+                      value={expenseForm.amount}
+                      onChange={(e) =>
+                        setExpenseForm({ ...expenseForm, amount: e.target.value })
+                      }
+                    />
+                    <select
+                      required
+                      value={expenseForm.category}
+                      onChange={(e) =>
+                        setExpenseForm({ ...expenseForm, category: e.target.value })
+                      }
+                    >
+                      {categories.map((cat) => (
+                        <option key={cat.id} value={cat.id}>
+                          {cat.name} ({cat.bucket})
+                        </option>
+                      ))}
+                      <option value="__custom__">+ New Category...</option>
+                    </select>
+                  </div>
 
-                      <div style={styles.twoCol}>
-                        <input
-                          type="number"
-                          step="0.01"
-                          min="0.01"
-                          required
-                          placeholder="Amount"
-                          value={expenseForm.amount}
-                          onChange={(e) =>
-                            setExpenseForm({ ...expenseForm, amount: e.target.value })
-                          }
-                        />
-                        <select
-                          value={expenseForm.habit_tag}
-                          onChange={(e) =>
-                            setExpenseForm({ ...expenseForm, habit_tag: e.target.value })
-                          }
-                        >
-                          <option value="planned">Planned</option>
-                          <option value="recurring">Recurring / Subscription</option>
-                          <option value="impulse">Impulse / Unplanned</option>
-                        </select>
-                      </div>
-
-                      <div style={styles.twoCol}>
-                        <input
-                          type="text"
-                          placeholder="Merchant (optional)"
-                          value={expenseForm.merchant}
-                          onChange={(e) =>
-                            setExpenseForm({ ...expenseForm, merchant: e.target.value })
-                          }
-                        />
-                        <select
-                          value={expenseForm.payment_mode}
-                          onChange={(e) =>
-                            setExpenseForm({ ...expenseForm, payment_mode: e.target.value })
-                          }
-                        >
-                          <option value="upi">UPI</option>
-                          <option value="card">Card</option>
-                          <option value="cash">Cash</option>
-                          <option value="netbanking">Net Banking</option>
-                        </select>
-                      </div>
-
+                  {(expenseForm.category === '__custom__' || categories.length === 0) && (
+                    <div style={styles.twoCol}>
                       <input
-                        type="datetime-local"
+                        type="text"
                         required
-                        value={expenseForm.spent_at}
+                        placeholder="Category name (e.g. Food, Rent)"
+                        value={expenseForm.customCategoryName}
                         onChange={(e) =>
-                          setExpenseForm({ ...expenseForm, spent_at: e.target.value })
+                          setExpenseForm({ ...expenseForm, customCategoryName: e.target.value })
                         }
                       />
-
-                      <button type="submit" disabled={saving || categories.length === 0}>
-                        {saving ? 'Saving...' : 'Save Expense'}
-                      </button>
-                    </form>
+                      <select
+                        value={expenseForm.customBucket}
+                        onChange={(e) =>
+                          setExpenseForm({ ...expenseForm, customBucket: e.target.value })
+                        }
+                      >
+                        <option value="essentials">Essentials</option>
+                        <option value="investment">Investment</option>
+                        <option value="miscellaneous">Miscellaneous</option>
+                      </select>
+                    </div>
                   )}
-                </div>
+
+                  <div style={styles.twoCol}>
+                    <input
+                      type="text"
+                      placeholder="What did you spend on? (optional)"
+                      value={expenseForm.merchant}
+                      onChange={(e) =>
+                        setExpenseForm({ ...expenseForm, merchant: e.target.value })
+                      }
+                    />
+                    <select
+                      value={expenseForm.habit_tag}
+                      onChange={(e) =>
+                        setExpenseForm({ ...expenseForm, habit_tag: e.target.value })
+                      }
+                    >
+                      <option value="planned">Planned</option>
+                      <option value="recurring">Recurring / Subscription</option>
+                      <option value="impulse">Impulse / Unplanned</option>
+                    </select>
+                  </div>
+
+                  <div style={styles.twoCol}>
+                    <select
+                      value={expenseForm.payment_mode}
+                      onChange={(e) =>
+                        setExpenseForm({ ...expenseForm, payment_mode: e.target.value })
+                      }
+                    >
+                      <option value="upi">UPI</option>
+                      <option value="card">Card</option>
+                      <option value="cash">Cash</option>
+                      <option value="netbanking">Net Banking</option>
+                    </select>
+                    <input
+                      type="datetime-local"
+                      required
+                      value={expenseForm.spent_at}
+                      onChange={(e) =>
+                        setExpenseForm({ ...expenseForm, spent_at: e.target.value })
+                      }
+                    />
+                  </div>
+
+                  <button type="submit" disabled={saving}>
+                    {saving ? 'Saving...' : 'Save Expense'}
+                  </button>
+                </form>
               )}
 
               {recentExpenses.length === 0 ? (
@@ -546,16 +521,6 @@ const styles = {
     backgroundColor: '#f8fafc',
     border: '1px solid #e5e7eb',
     borderRadius: '8px',
-  },
-  inlineFormInner: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '0.6rem',
-  },
-  catBox: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '0.5rem',
   },
   twoCol: {
     display: 'grid',

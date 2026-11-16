@@ -17,6 +17,12 @@ from .serializers import (
     RegisterSerializer,
 )
 
+DEFAULT_CATEGORIES = [
+    ("Essentials", "essentials"),
+    ("Investment", "investment"),
+    ("Miscellaneous", "miscellaneous"),
+]
+
 
 @api_view(["POST"])
 @permission_classes([AllowAny])
@@ -83,7 +89,9 @@ def dashboard(request):
     month_start = now.date().replace(year=year, month=month, day=1)
 
     # Fetch user records (aggregated in Python for full django-mongodb-backend compatibility)
-    incomes = list(Income.objects.filter(user=user, date_received__year=year, date_received__month=month))
+    incomes = list(
+        Income.objects.filter(user=user, date_received__year=year, date_received__month=month)
+    )
     expenses = list(
         Expense.objects.select_related("category").filter(
             user=user, spent_at__year=year, spent_at__month=month
@@ -179,7 +187,14 @@ class CategoryViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        return Category.objects.filter(user=self.request.user).order_by("bucket", "name")
+        qs = Category.objects.filter(user=self.request.user)
+        if not qs.exists():
+            for name, bucket in DEFAULT_CATEGORIES:
+                Category.objects.get_or_create(
+                    user=self.request.user, name=name, defaults={"bucket": bucket}
+                )
+            qs = Category.objects.filter(user=self.request.user)
+        return qs.order_by("bucket", "name")
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
@@ -204,7 +219,6 @@ class BudgetViewSet(viewsets.ModelViewSet):
         return Budget.objects.filter(user=self.request.user).order_by("-month")
 
     def perform_create(self, serializer):
-        # Update existing budget if one already exists for the same bucket & month
         bucket = serializer.validated_data["bucket"]
         month = serializer.validated_data["month"]
         limit_amount = serializer.validated_data["limit_amount"]
