@@ -217,11 +217,29 @@ export default function Dashboard() {
         <>
           <div className="stats">
             <div className="card">
-              <h3>Income</h3>
+              <div style={styles.statHeader}>
+                <h3 style={{ margin: 0 }}>Income</h3>
+                <button
+                  type="button"
+                  style={styles.statBtn}
+                  onClick={() => navigate('/incomes')}
+                >
+                  More →
+                </button>
+              </div>
               <p>{formatMoney(summary.total_income)}</p>
             </div>
             <div className="card">
-              <h3>Expenses</h3>
+              <div style={styles.statHeader}>
+                <h3 style={{ margin: 0 }}>Expenses</h3>
+                <button
+                  type="button"
+                  style={styles.statBtn}
+                  onClick={() => navigate('/expenses')}
+                >
+                  More →
+                </button>
+              </div>
               <p>{formatMoney(summary.total_expense)}</p>
             </div>
             <div className="card">
@@ -343,7 +361,6 @@ export default function Dashboard() {
 
               {showExpenseForm && (
                 <div style={styles.inlineForm}>
-                  {/* Quick category creator if none exist or user clicks "+ New Category" */}
                   {showNewCat ? (
                     <form onSubmit={handleCreateCategory} style={styles.catBox}>
                       <small>
@@ -500,6 +517,16 @@ export default function Dashboard() {
 }
 
 const styles = {
+  statHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: '0.5rem',
+  },
+  statBtn: {
+    padding: '0.25rem 0.6rem',
+    fontSize: '0.8rem',
+  },
   cardHeader: {
     display: 'flex',
     justifyContent: 'space-between',
