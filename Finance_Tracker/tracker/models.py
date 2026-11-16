@@ -70,3 +70,11 @@ class Expense(models.Model):
 
     def __str__(self):
         return f"{self.category.name}: {self.amount} on {self.spent_at:%Y-%m-%d}"
+    # tracker/models.py
+class SpendingHabit(models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, null=True, blank=True)
+    name = models.CharField(max_length=50)  # e.g., "Planned", "Recurring / Subscription", "Impulse / Unplanned"
+    code = models.SlugField(max_length=50)  # e.g., "planned", "recurring", "impulse"
+
+    def __str__(self):
+        return self.name
