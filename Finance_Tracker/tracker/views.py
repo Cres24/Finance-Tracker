@@ -14,6 +14,10 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from .models import Category, Expense
+from rest_framework import viewsets
+from rest_framework.permissions import IsAuthenticated
+from .models import Category, Income, Expense
+from .serializers import CategorySerializer, IncomeSerializer, ExpenseSerializer
 
 
 class RegisterSerializer(serializers.ModelSerializer):
@@ -130,3 +134,40 @@ def tracker_choices(request):
         "habit_tags": [{"value": k, "label": v} for k, v in Expense.HABIT_TAGS],
         "payment_modes": [{"value": k, "label": v} for k, v in Expense.PAYMENT_MODES],
     })
+from rest_framework import viewsets
+from rest_framework.permissions import IsAuthenticated
+from .models import Category, Income, Expense
+from .serializers import CategorySerializer, IncomeSerializer, ExpenseSerializer
+
+
+class CategoryViewSet(viewsets.ModelViewSet):
+    serializer_class = CategorySerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return Category.objects.filter(user=self.request.user)
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+
+
+class IncomeViewSet(viewsets.ModelViewSet):
+    serializer_class = IncomeSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return Income.objects.filter(user=self.request.user).order_by("-date_received")
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+
+
+class ExpenseViewSet(viewsets.ModelViewSet):
+    serializer_class = ExpenseSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return Expense.objects.filter(user=self.request.user).order_by("-spent_at")
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
