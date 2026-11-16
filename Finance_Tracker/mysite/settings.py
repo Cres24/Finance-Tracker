@@ -32,9 +32,7 @@ ALLOWED_HOSTS = []
 
 # Application definition
 
-# mysite/settings.py
-# mysite/settings.py
-# mysite/settings.py
+# Application definition
 INSTALLED_APPS = [
     "django_mongodb_backend",
     "mysite.apps.MongoAdminConfig",
@@ -43,8 +41,15 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "rest_framework",
     "tracker",
 ]
+
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": (
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
+    ),
+}
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
