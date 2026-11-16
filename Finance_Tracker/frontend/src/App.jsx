@@ -1,8 +1,10 @@
-import { Navigate, Route, Routes } from 'react-router-dom'
-import ProtectedRoute from './ProtectedRoute'
-import Login from './pages/Login'
-import Register from './pages/Register'
-import Dashboard from './pages/Dashboard'
+// frontend/src/App.jsx
+import { Navigate, Route, Routes } from "react-router-dom";
+import ProtectedRoute from "./ProtectedRoute";
+import Login from "./pages/Login";
+import Register from "./pages/Register";
+import Dashboard from "./pages/Dashboard";
+import TransactionEntryPage from "./pages/TransactionEntryPage";
 
 export default function App() {
   return (
@@ -17,7 +19,15 @@ export default function App() {
           </ProtectedRoute>
         }
       />
+      <Route
+        path="/transactions"
+        element={
+          <ProtectedRoute>
+            <TransactionEntryPage />
+          </ProtectedRoute>
+        }
+      />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
-  )
+  );
 }

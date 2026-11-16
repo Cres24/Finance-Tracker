@@ -1,3 +1,4 @@
+/* frontend/src/index.css */
 :root {
   --text: #374151;
   --text-h: #111827;
@@ -51,14 +52,20 @@ a {
   gap: 0.75rem;
 }
 
-input {
+input,
+select,
+textarea {
   padding: 0.6rem;
   border: 1px solid var(--border);
   border-radius: 6px;
   font: inherit;
+  background: var(--card-bg);
+  color: var(--text-h);
 }
 
-input:focus {
+input:focus,
+select:focus,
+textarea:focus {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
 }
@@ -80,6 +87,11 @@ button:disabled {
 
 .error {
   color: var(--danger);
+  margin: 0;
+}
+
+.success {
+  color: var(--success);
   margin: 0;
 }
 
