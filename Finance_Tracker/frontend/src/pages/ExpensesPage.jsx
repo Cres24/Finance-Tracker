@@ -276,7 +276,7 @@ export default function ExpensesPage() {
                 </select>
               </label>
 
-              <div style={styles.twoCol}>
+              <div className="form-grid2">
                 <label style={styles.label}>
                   Amount ({currency})
                   <input
@@ -314,7 +314,7 @@ export default function ExpensesPage() {
               </label>
 
               {form.is_recurring && (
-                <div style={styles.twoCol}>
+                <div className="form-grid2">
                   <label style={styles.label}>
                     Repeat every
                     <input

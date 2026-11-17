@@ -1,9 +1,26 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import {
+  PieChart,
+  Pie,
+  Cell,
+  Tooltip,
+  ResponsiveContainer,
+  AreaChart,
+  Area,
+  XAxis,
+  ReferenceLine,
+} from 'recharts'
 import { useAuth } from '../AuthContext'
 import { useCurrency, CURRENCIES } from '../CurrencyContext'
 import { CATEGORY_COLORS, nextCategoryColor } from '../categoryColors'
 import api from '../api'
+
+const BUCKET_COLORS = {
+  essentials: '#2563eb',    // Blue
+  investment: '#16a34a',    // Green
+  miscellaneous: '#eab308', // Yellow
+}
 
 function BucketRow({ label, spent, budget_limit, formatMoney }) {
   const pct = budget_limit ? Math.min((spent / budget_limit) * 100, 100) : 0
@@ -33,6 +50,7 @@ export default function Dashboard() {
 
   const [data, setData] = useState(null)
   const [categories, setCategories] = useState([])
+  const [allExpenses, setAllExpenses] = useState([])
   const [error, setError] = useState('')
 
   const [showIncomeForm, setShowIncomeForm] = useState(false)
@@ -64,15 +82,19 @@ export default function Dashboard() {
   const loadDashboard = useCallback(
     async (ignore = false) => {
       try {
-        const [dashRes, catRes] = await Promise.all([
+        const [dashRes, catRes, expRes] = await Promise.all([
           api.get('/dashboard/'),
           api.get('/categories/'),
+          api.get('/expenses/'),
         ])
         if (ignore) return
 
         setData(dashRes.data)
         const catList = Array.isArray(catRes.data) ? catRes.data : catRes.data.results || []
+        const expList = Array.isArray(expRes.data) ? expRes.data : expRes.data.results || []
         setCategories(catList)
+        setAllExpenses(expList)
+
         if (catList.length > 0) {
           setExpenseForm((prev) => ({
             ...prev,
@@ -131,7 +153,6 @@ export default function Dashboard() {
     try {
       let categoryId = expenseForm.category
 
-      // If user chose "+ Custom category..." or no category ID exists yet, create it seamlessly first
       if (categoryId === '__custom__' || !categoryId) {
         const nameToUse =
           expenseForm.customCategoryName.trim() ||
@@ -197,6 +218,65 @@ export default function Dashboard() {
   const incomes = data?.income_by_source || []
   const recentExpenses = data?.recent_expenses || []
 
+  // Pie chart data: Essentials (Blue), Investment (Green), Miscellaneous (Yellow)
+  const pieData = budgets
+    .map((b) => ({
+      bucket: b.bucket,
+      name: b.label,
+      value: Number(b.spent || 0),
+      color: BUCKET_COLORS[b.bucket] || '#6b7280',
+    }))
+    .filter((item) => item.value > 0)
+
+  // Daily budget & daily spend series for the Balance card graph
+  const { dailyBudgetData, dailyBudgetTarget, hasDailyData } = useMemo(() => {
+    if (!data?.month) {
+      return { dailyBudgetData: [], dailyBudgetTarget: 0, hasDailyData: false }
+    }
+
+    const [yearStr, monthStr] = data.month.split('-')
+    const year = Number(yearStr)
+    const month = Number(monthStr)
+    const daysInMonth = new Date(year, month, 0).getDate()
+
+    const totalMonthlyBudget = budgets.reduce(
+      (sum, b) => sum + Number(b.budget_limit || 0),
+      0
+    )
+    const dailyAllowance = totalMonthlyBudget > 0 ? totalMonthlyBudget / daysInMonth : 0
+
+    const spendByDay = {}
+    allExpenses.forEach((exp) => {
+      const dt = new Date(exp.spent_at)
+      if (dt.getFullYear() === year && dt.getMonth() + 1 === month) {
+        const day = dt.getDate()
+        spendByDay[day] = (spendByDay[day] || 0) + Number(exp.amount || 0)
+      }
+    })
+
+    const today = new Date()
+    const isCurrentMonth =
+      today.getFullYear() === year && today.getMonth() + 1 === month
+    const lastDayToPlot = isCurrentMonth ? today.getDate() : daysInMonth
+
+    const series = []
+    for (let d = 1; d <= lastDayToPlot; d++) {
+      const spent = spendByDay[d] || 0
+      series.push({
+        day: `${d}`,
+        spent,
+        dailyBudget: Number(dailyAllowance.toFixed(2)),
+        remainingDaily: Number((dailyAllowance - spent).toFixed(2)),
+      })
+    }
+
+    return {
+      dailyBudgetData: series,
+      dailyBudgetTarget: dailyAllowance,
+      hasDailyData: totalMonthlyBudget > 0 || Object.keys(spendByDay).length > 0,
+    }
+  }, [data?.month, budgets, allExpenses])
+
   return (
     <div className="dashboard">
       <header>
@@ -244,7 +324,8 @@ export default function Dashboard() {
       {data && (
         <>
           <div className="stats">
-            <div className="card">
+            {/* INCOME CARD (with card-zoom) */}
+            <div className="card card-zoom">
               <div style={styles.statHeader}>
                 <h3 style={{ margin: 0 }}>Income</h3>
                 <button
@@ -257,7 +338,9 @@ export default function Dashboard() {
               </div>
               <p>{formatMoney(summary.total_income)}</p>
             </div>
-            <div className="card">
+
+            {/* EXPENSES CARD (with card-zoom) */}
+            <div className="card card-zoom" style={{ overflow: 'hidden' }}>
               <div style={styles.statHeader}>
                 <h3 style={{ margin: 0 }}>Expenses</h3>
                 <button
@@ -269,17 +352,135 @@ export default function Dashboard() {
                 </button>
               </div>
               <p>{formatMoney(summary.total_expense)}</p>
+
+              {/* Expense Breakdown Pie Chart */}
+              {pieData.length > 0 ? (
+                <div style={styles.pieWrapper}>
+                  <div className="chart-zoom" style={{ width: '100%', height: 130 }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={pieData}
+                          dataKey="value"
+                          nameKey="name"
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={28}
+                          outerRadius={52}
+                          paddingAngle={2}
+                        >
+                          {pieData.map((entry) => (
+                            <Cell key={entry.bucket} fill={entry.color} />
+                          ))}
+                        </Pie>
+                        <Tooltip formatter={(value) => formatMoney(value)} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+
+                  <div style={styles.pieLegend}>
+                    {budgets.map((b) => (
+                      <div key={b.bucket} style={styles.legendItem}>
+                        <span
+                          style={{
+                            ...styles.legendDot,
+                            backgroundColor: BUCKET_COLORS[b.bucket] || '#6b7280',
+                          }}
+                        />
+                        <span>{b.label}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <small style={{ color: 'var(--muted)', display: 'block', marginTop: '0.5rem' }}>
+                  No expense data to chart yet.
+                </small>
+              )}
             </div>
-            <div className="card">
+
+            {/* BALANCE CARD */}
+            <div className="card" style={{ overflow: 'hidden' }}>
               <h3>Balance</h3>
               <p className={summary.net_savings < 0 ? 'neg' : 'pos'}>
                 {formatMoney(summary.net_savings)}
               </p>
+
+              {/* Everyday Budget vs. Spend Graph */}
+              {hasDailyData ? (
+                <div style={styles.pieWrapper}>
+                  <div style={styles.dailyHeader}>
+                    <span>Daily budget</span>
+                    <strong>
+                      {dailyBudgetTarget > 0
+                        ? `${formatMoney(dailyBudgetTarget)}/day`
+                        : 'No budget set'}
+                    </strong>
+                  </div>
+
+                  <div className="chart-zoom" style={{ width: '100%', height: 112 }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart
+                        data={dailyBudgetData}
+                        margin={{ top: 6, right: 4, left: 4, bottom: 0 }}
+                      >
+                        <XAxis
+                          dataKey="day"
+                          tick={{ fontSize: 10, fill: '#6b7280' }}
+                          axisLine={false}
+                          tickLine={false}
+                          interval="preserveStartEnd"
+                        />
+                        <Tooltip
+                          labelFormatter={(day) => `Day ${day}`}
+                          formatter={(value, name) => [
+                            formatMoney(value),
+                            name === 'spent' ? 'Spent' : 'Daily Budget',
+                          ]}
+                        />
+                        {dailyBudgetTarget > 0 && (
+                          <ReferenceLine
+                            y={dailyBudgetTarget}
+                            stroke="#15803d"
+                            strokeDasharray="3 3"
+                          />
+                        )}
+                        <Area
+                          type="monotone"
+                          dataKey="spent"
+                          stroke="#16a34a"
+                          strokeWidth={2}
+                          fill="#16a34a"
+                          fillOpacity={0.16}
+                        />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+
+                  <div style={styles.pieLegend}>
+                    <div style={styles.legendItem}>
+                      <span style={{ ...styles.legendDot, backgroundColor: '#16a34a' }} />
+                      <span>Daily spend</span>
+                    </div>
+                    {dailyBudgetTarget > 0 && (
+                      <div style={styles.legendItem}>
+                        <span style={{ ...styles.legendDot, backgroundColor: '#15803d' }} />
+                        <span>Daily limit</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <small style={{ color: 'var(--muted)', display: 'block', marginTop: '0.5rem' }}>
+                  Set a budget to see your everyday target.
+                </small>
+              )}
             </div>
           </div>
 
           <div className="grid2">
-            <div className="card">
+            {/* BUDGETS CARD (with card-zoom) */}
+            <div className="card card-zoom">
               <h3>Budgets</h3>
               {budgets.map((b) => (
                 <BucketRow key={b.bucket} {...b} formatMoney={formatMoney} />
@@ -337,7 +538,7 @@ export default function Dashboard() {
                     value={incomeForm.source}
                     onChange={(e) => setIncomeForm({ ...incomeForm, source: e.target.value })}
                   />
-                  <div style={styles.twoCol}>
+                  <div className="form-grid2">
                     <input
                       type="number"
                       step="0.01"
@@ -402,7 +603,7 @@ export default function Dashboard() {
 
               {showExpenseForm && (
                 <form onSubmit={handleAddExpense} style={styles.inlineForm}>
-                  <div style={styles.twoCol}>
+                  <div className="form-grid2">
                     <input
                       type="number"
                       step="0.01"
@@ -432,7 +633,7 @@ export default function Dashboard() {
 
                   {(expenseForm.category === '__custom__' || categories.length === 0) && (
                     <>
-                      <div style={styles.twoCol}>
+                      <div className="form-grid2">
                         <input
                           type="text"
                           required
@@ -518,7 +719,7 @@ export default function Dashboard() {
                   </label>
 
                   {expenseForm.is_recurring && (
-                    <div style={styles.twoCol}>
+                    <div className="form-grid2">
                       <input
                         type="number"
                         min="1"
@@ -546,7 +747,7 @@ export default function Dashboard() {
                     </div>
                   )}
 
-                  <div style={styles.twoCol}>
+                  <div className="form-grid2">
                     <select
                       value={expenseForm.payment_mode}
                       onChange={(e) =>
@@ -617,6 +818,40 @@ const styles = {
   statBtn: {
     padding: '0.25rem 0.6rem',
     fontSize: '0.8rem',
+  },
+  pieWrapper: {
+    marginTop: '0.75rem',
+    paddingTop: '0.65rem',
+    borderTop: '1px solid var(--border)',
+  },
+  dailyHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    fontSize: '0.75rem',
+    color: 'var(--muted)',
+    marginBottom: '0.25rem',
+  },
+  pieLegend: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: '0.4rem',
+    marginTop: '0.35rem',
+    fontSize: '0.75rem',
+    color: 'var(--text)',
+  },
+  legendItem: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.3rem',
+  },
+  legendDot: {
+    width: '8px',
+    height: '8px',
+    borderRadius: '50%',
+    display: 'inline-block',
+    flexShrink: 0,
   },
   cardHeader: {
     display: 'flex',
