@@ -245,7 +245,6 @@ export default function Dashboard() {
     )
     const dailyAllowance = totalMonthlyBudget > 0 ? totalMonthlyBudget / daysInMonth : 0
 
-    // Sum expenses per day of the active month
     const spendByDay = {}
     allExpenses.forEach((exp) => {
       const dt = new Date(exp.spent_at)
@@ -339,7 +338,7 @@ export default function Dashboard() {
               <p>{formatMoney(summary.total_income)}</p>
             </div>
 
-            <div className="card">
+            <div className="card" style={{ overflow: 'hidden' }}>
               <div style={styles.statHeader}>
                 <h3 style={{ margin: 0 }}>Expenses</h3>
                 <button
@@ -355,7 +354,7 @@ export default function Dashboard() {
               {/* Expense Breakdown Pie Chart */}
               {pieData.length > 0 ? (
                 <div style={styles.pieWrapper}>
-                  <div style={{ width: '100%', height: 130 }}>
+                  <div className="chart-zoom" style={{ width: '100%', height: 130 }}>
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
                         <Pie
@@ -398,7 +397,7 @@ export default function Dashboard() {
               )}
             </div>
 
-            <div className="card">
+            <div className="card" style={{ overflow: 'hidden' }}>
               <h3>Balance</h3>
               <p className={summary.net_savings < 0 ? 'neg' : 'pos'}>
                 {formatMoney(summary.net_savings)}
@@ -416,7 +415,7 @@ export default function Dashboard() {
                     </strong>
                   </div>
 
-                  <div style={{ width: '100%', height: 112 }}>
+                  <div className="chart-zoom" style={{ width: '100%', height: 112 }}>
                     <ResponsiveContainer width="100%" height="100%">
                       <AreaChart
                         data={dailyBudgetData}
@@ -439,7 +438,7 @@ export default function Dashboard() {
                         {dailyBudgetTarget > 0 && (
                           <ReferenceLine
                             y={dailyBudgetTarget}
-                            stroke="#16a34a"
+                            stroke="#15803d"
                             strokeDasharray="3 3"
                           />
                         )}
@@ -449,7 +448,7 @@ export default function Dashboard() {
                           stroke="#16a34a"
                           strokeWidth={2}
                           fill="#16a34a"
-                          fillOpacity={0.14}
+                          fillOpacity={0.16}
                         />
                       </AreaChart>
                     </ResponsiveContainer>
@@ -462,7 +461,7 @@ export default function Dashboard() {
                     </div>
                     {dailyBudgetTarget > 0 && (
                       <div style={styles.legendItem}>
-                        <span style={{ ...styles.legendDot, backgroundColor: '#16a34a' }} />
+                        <span style={{ ...styles.legendDot, backgroundColor: '#15803d' }} />
                         <span>Daily limit</span>
                       </div>
                     )}

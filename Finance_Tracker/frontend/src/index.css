@@ -209,6 +209,16 @@ button:disabled {
   color: var(--danger);
 }
 
+.chart-zoom {
+  transition: transform 0.22s ease;
+  transform-origin: center center;
+  will-change: transform;
+}
+
+.chart-zoom:hover {
+  transform: scale(1.06);
+}
+
 .grid2 {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
