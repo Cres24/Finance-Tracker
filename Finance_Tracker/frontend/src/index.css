@@ -218,6 +218,18 @@ button:disabled {
 .chart-zoom:hover {
   transform: scale(1.06);
 }
+.card-zoom {
+  transition: transform 0.22s ease, box-shadow 0.22s ease;
+  transform-origin: center center;
+  will-change: transform;
+}
+
+.card-zoom:hover {
+  transform: scale(1.03);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+  position: relative;
+  z-index: 2;
+}
 
 .grid2 {
   display: grid;

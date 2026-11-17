@@ -324,7 +324,8 @@ export default function Dashboard() {
       {data && (
         <>
           <div className="stats">
-            <div className="card">
+            {/* INCOME CARD (with card-zoom) */}
+            <div className="card card-zoom">
               <div style={styles.statHeader}>
                 <h3 style={{ margin: 0 }}>Income</h3>
                 <button
@@ -338,7 +339,8 @@ export default function Dashboard() {
               <p>{formatMoney(summary.total_income)}</p>
             </div>
 
-            <div className="card" style={{ overflow: 'hidden' }}>
+            {/* EXPENSES CARD (with card-zoom) */}
+            <div className="card card-zoom" style={{ overflow: 'hidden' }}>
               <div style={styles.statHeader}>
                 <h3 style={{ margin: 0 }}>Expenses</h3>
                 <button
@@ -397,6 +399,7 @@ export default function Dashboard() {
               )}
             </div>
 
+            {/* BALANCE CARD */}
             <div className="card" style={{ overflow: 'hidden' }}>
               <h3>Balance</h3>
               <p className={summary.net_savings < 0 ? 'neg' : 'pos'}>
@@ -476,7 +479,8 @@ export default function Dashboard() {
           </div>
 
           <div className="grid2">
-            <div className="card">
+            {/* BUDGETS CARD (with card-zoom) */}
+            <div className="card card-zoom">
               <h3>Budgets</h3>
               {budgets.map((b) => (
                 <BucketRow key={b.bucket} {...b} formatMoney={formatMoney} />
