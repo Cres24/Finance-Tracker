@@ -232,7 +232,7 @@ export default function AnalyticsPage() {
             <div className="card empty-state">
               <h3>No activity for {monthLabel(data.month)}</h3>
               <p>Add some income or expenses to see category colors, trends, and budgets here.</p>
-              <button type="button" onClick={() => navigate('/transactions')}>
+              <button type="button" onClick={() => navigate('/expenses')}>
                 Add a transaction
               </button>
             </div>
