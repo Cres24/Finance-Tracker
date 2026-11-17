@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
+import api from '../api';
 import { useCurrency } from "../CurrencyContext";
 import { CATEGORY_COLORS, nextCategoryColor } from "../categoryColors";
-
-const API_BASE = "http://127.0.0.1:8000/api";
 
 export default function TransactionEntryPage({ onTransactionAdded }) {
   const { currency, toINR } = useCurrency();
@@ -66,35 +65,23 @@ export default function TransactionEntryPage({ onTransactionAdded }) {
     color: "",
   });
 
-  const getAuthHeaders = () => {
-    const token = localStorage.getItem("access");
-    return {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    };
-  };
-
   // Load user's categories and backend dropdown choices on mount
   const fetchInitialData = async () => {
     try {
       const [catRes, choicesRes] = await Promise.all([
-        fetch(`${API_BASE}/categories/`, { headers: getAuthHeaders() }),
-        fetch(`${API_BASE}/choices/`, { headers: getAuthHeaders() }),
+        api.get('/categories/'),
+        api.get('/choices/'),
       ]);
 
-      if (catRes.ok) {
-        const catData = await catRes.json();
-        const list = Array.isArray(catData) ? catData : catData.results || [];
-        setCategories(list);
-        if (list.length > 0 && !expenseForm.category) {
-          setExpenseForm((prev) => ({ ...prev, category: String(list[0].id) }));
-        }
+      const list = Array.isArray(catRes.data)
+        ? catRes.data
+        : catRes.data.results || [];
+      setCategories(list);
+      if (list.length > 0 && !expenseForm.category) {
+        setExpenseForm((prev) => ({ ...prev, category: String(list[0].id) }));
       }
 
-      if (choicesRes.ok) {
-        const choicesData = await choicesRes.json();
-        setChoices(choicesData);
-      }
+      setChoices(choicesRes.data);
     } catch (err) {
       console.error("Failed to load categories/choices:", err);
     }
@@ -109,29 +96,22 @@ export default function TransactionEntryPage({ onTransactionAdded }) {
     setStatus({ type: "", message: "" });
 
     try {
-      const response = await fetch(`${API_BASE}/${endpoint}/`, {
-        method: "POST",
-        headers: getAuthHeaders(),
-        body: JSON.stringify(payload),
-      });
-
-      const data = await response.json().catch(() => ({}));
-
-      if (!response.ok) {
-        const errorDetail =
-          data.detail ||
-          Object.entries(data)
-            .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(", ") : v}`)
-            .join(" | ") ||
-          "Request failed";
-        throw new Error(errorDetail);
-      }
+      const { data } = await api.post(`/${endpoint}/`, payload);
 
       setStatus({ type: "success", message: "Saved successfully to MongoDB!" });
       onSuccessReset(data);
       if (onTransactionAdded) onTransactionAdded(data);
     } catch (err) {
-      setStatus({ type: "error", message: err.message });
+      const errorData = err.response?.data;
+      const errorDetail =
+        errorData?.detail ||
+        (errorData &&
+          Object.entries(errorData)
+            .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(", ") : v}`)
+            .join(" | ")) ||
+        err.message ||
+        "Request failed";
+      setStatus({ type: "error", message: errorDetail });
     } finally {
       setLoading(false);
     }
