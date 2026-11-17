@@ -315,7 +315,7 @@ export default function Dashboard() {
             Analytics
           </button>
           <button type="button" onClick={() => navigate('/transactions')}>
-            Set Budgets / Full Form
+            Set Budget
           </button>
           {user && <span className="greeting">Hi, {user.username}</span>}
           <button type="button" className="logout" onClick={logout}>
