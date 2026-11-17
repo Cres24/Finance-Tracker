@@ -1,9 +1,16 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts'
 import { useAuth } from '../AuthContext'
 import { useCurrency, CURRENCIES } from '../CurrencyContext'
 import { CATEGORY_COLORS, nextCategoryColor } from '../categoryColors'
 import api from '../api'
+
+const BUCKET_COLORS = {
+  essentials: '#2563eb',    // Blue
+  investment: '#16a34a',    // Green
+  miscellaneous: '#eab308', // Yellow
+}
 
 function BucketRow({ label, spent, budget_limit, formatMoney }) {
   const pct = budget_limit ? Math.min((spent / budget_limit) * 100, 100) : 0
@@ -197,6 +204,16 @@ export default function Dashboard() {
   const incomes = data?.income_by_source || []
   const recentExpenses = data?.recent_expenses || []
 
+  // Pie chart data: Essentials (Blue), Investment (Green), Miscellaneous (Yellow)
+  const pieData = budgets
+    .map((b) => ({
+      bucket: b.bucket,
+      name: b.label,
+      value: Number(b.spent || 0),
+      color: BUCKET_COLORS[b.bucket] || '#6b7280',
+    }))
+    .filter((item) => item.value > 0)
+
   return (
     <div className="dashboard">
       <header>
@@ -257,6 +274,7 @@ export default function Dashboard() {
               </div>
               <p>{formatMoney(summary.total_income)}</p>
             </div>
+
             <div className="card">
               <div style={styles.statHeader}>
                 <h3 style={{ margin: 0 }}>Expenses</h3>
@@ -269,7 +287,53 @@ export default function Dashboard() {
                 </button>
               </div>
               <p>{formatMoney(summary.total_expense)}</p>
+
+              {/* Expense Breakdown Pie Chart */}
+              {pieData.length > 0 ? (
+                <div style={styles.pieWrapper}>
+                  <div style={{ width: '100%', height: 130 }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={pieData}
+                          dataKey="value"
+                          nameKey="name"
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={28}
+                          outerRadius={52}
+                          paddingAngle={2}
+                        >
+                          {pieData.map((entry) => (
+                            <Cell key={entry.bucket} fill={entry.color} />
+                          ))}
+                        </Pie>
+                        <Tooltip formatter={(value) => formatMoney(value)} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+
+                  <div style={styles.pieLegend}>
+                    {budgets.map((b) => (
+                      <div key={b.bucket} style={styles.legendItem}>
+                        <span
+                          style={{
+                            ...styles.legendDot,
+                            backgroundColor: BUCKET_COLORS[b.bucket] || '#6b7280',
+                          }}
+                        />
+                        <span>{b.label}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <small style={{ color: 'var(--muted)', display: 'block', marginTop: '0.5rem' }}>
+                  No expense data to chart yet.
+                </small>
+              )}
             </div>
+
             <div className="card">
               <h3>Balance</h3>
               <p className={summary.net_savings < 0 ? 'neg' : 'pos'}>
@@ -617,6 +681,32 @@ const styles = {
   statBtn: {
     padding: '0.25rem 0.6rem',
     fontSize: '0.8rem',
+  },
+  pieWrapper: {
+    marginTop: '0.75rem',
+    paddingTop: '0.65rem',
+    borderTop: '1px solid var(--border)',
+  },
+  pieLegend: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: '0.4rem',
+    marginTop: '0.35rem',
+    fontSize: '0.75rem',
+    color: 'var(--text)',
+  },
+  legendItem: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.3rem',
+  },
+  legendDot: {
+    width: '8px',
+    height: '8px',
+    borderRadius: '50%',
+    display: 'inline-block',
+    flexShrink: 0,
   },
   cardHeader: {
     display: 'flex',
