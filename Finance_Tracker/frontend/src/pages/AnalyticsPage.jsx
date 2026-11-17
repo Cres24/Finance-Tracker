@@ -10,6 +10,7 @@ import {
   Pie,
   PieChart,
   ResponsiveContainer,
+  Sector,
   Tooltip,
   XAxis,
   YAxis,
@@ -30,6 +31,21 @@ function monthLabel(value) {
   return date.toLocaleDateString(undefined, { month: 'short', year: '2-digit' })
 }
 
+function renderActiveSlice(props) {
+  const { cx, cy, innerRadius, outerRadius, startAngle, endAngle, fill } = props
+  return (
+    <Sector
+      cx={cx}
+      cy={cy}
+      innerRadius={innerRadius - 2}
+      outerRadius={outerRadius + 8}
+      startAngle={startAngle}
+      endAngle={endAngle}
+      fill={fill}
+    />
+  )
+}
+
 function ChartTooltip({ active, payload, label, formatMoney, labelFormatter }) {
   if (!active || !payload || payload.length === 0) return null
   return (
@@ -48,7 +64,7 @@ function ChartTooltip({ active, payload, label, formatMoney, labelFormatter }) {
 
 function StatCard({ label, value, hint, tone }) {
   return (
-    <div className="card stat-card">
+    <div className="card stat-card card-zoom">
       <h3>{label}</h3>
       <p className={tone || ''}>{value}</p>
       {hint && <small>{hint}</small>}
@@ -66,6 +82,7 @@ export default function AnalyticsPage() {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [activeCategoryIdx, setActiveCategoryIdx] = useState(-1)
 
   const loadAnalytics = useCallback(async () => {
     setLoading(true)
@@ -224,13 +241,13 @@ export default function AnalyticsPage() {
           {hasData && (
             <>
               <div className="chart-grid">
-                <div className="card chart-card">
+                <div className="card chart-card card-zoom">
                   <h3>Expenses by category</h3>
                   {categories.length === 0 ? (
                     <p className="hint">No expenses recorded this month.</p>
                   ) : (
                     <div className="donut-layout">
-                      <div className="donut-chart">
+                      <div className="donut-chart chart-zoom">
                         <ResponsiveContainer width="100%" height={240}>
                           <PieChart>
                             <Pie
@@ -241,6 +258,10 @@ export default function AnalyticsPage() {
                               outerRadius={96}
                               paddingAngle={2}
                               stroke="none"
+                              activeIndex={activeCategoryIdx >= 0 ? activeCategoryIdx : undefined}
+                              activeShape={renderActiveSlice}
+                              onMouseEnter={(_, idx) => setActiveCategoryIdx(idx)}
+                              onMouseLeave={() => setActiveCategoryIdx(-1)}
                             >
                               {categories.map((entry) => (
                                 <Cell key={entry.category} fill={entry.color} />
@@ -262,8 +283,17 @@ export default function AnalyticsPage() {
                         </div>
                       </div>
                       <ul className="legend-list">
-                        {categories.map((entry) => (
-                          <li key={entry.category}>
+                        {categories.map((entry, idx) => (
+                          <li
+                            key={entry.category}
+                            onMouseEnter={() => setActiveCategoryIdx(idx)}
+                            onMouseLeave={() => setActiveCategoryIdx(-1)}
+                            style={{
+                              cursor: 'pointer',
+                              transform: activeCategoryIdx === idx ? 'scale(1.04)' : undefined,
+                              backgroundColor: activeCategoryIdx === idx ? '#f8fafc' : undefined,
+                            }}
+                          >
                             <span
                               className="legend-dot"
                               style={{ background: entry.color }}
@@ -278,7 +308,7 @@ export default function AnalyticsPage() {
                   )}
                 </div>
 
-                <div className="card chart-card">
+                <div className="card chart-card card-zoom">
                   <h3>Expenses by bucket</h3>
                   <ResponsiveContainer width="100%" height={240}>
                     <BarChart
@@ -299,7 +329,7 @@ export default function AnalyticsPage() {
                   </ResponsiveContainer>
                 </div>
 
-                <div className="card chart-card">
+                <div className="card chart-card card-zoom">
                   <h3>Payment modes</h3>
                   <ResponsiveContainer width="100%" height={240}>
                     <BarChart
@@ -320,7 +350,7 @@ export default function AnalyticsPage() {
                   </ResponsiveContainer>
                 </div>
 
-                <div className="card chart-card">
+                <div className="card chart-card card-zoom">
                   <h3>Budget vs actual</h3>
                   {budgets.map((bucket) => {
                     const pct = bucket.budget_limit
@@ -361,7 +391,7 @@ export default function AnalyticsPage() {
                 </div>
               </div>
 
-              <div className="card chart-card trend-card">
+              <div className="card chart-card trend-card card-zoom">
                 <h3>Income, expenses & savings trend</h3>
                 <ResponsiveContainer width="100%" height={300}>
                   <ComposedChart
@@ -394,7 +424,7 @@ export default function AnalyticsPage() {
               </div>
 
               <div className="chart-grid">
-                <div className="card chart-card">
+                <div className="card chart-card card-zoom">
                   <h3>Top merchants</h3>
                   {topMerchants.length === 0 ? (
                     <p className="hint">No merchants recorded this month.</p>
@@ -426,7 +456,7 @@ export default function AnalyticsPage() {
                   )}
                 </div>
 
-                <div className="card chart-card">
+                <div className="card chart-card card-zoom">
                   <h3>Income by source</h3>
                   {incomeSources.length === 0 ? (
                     <p className="hint">No income recorded this month.</p>
@@ -464,7 +494,7 @@ export default function AnalyticsPage() {
                 </div>
               </div>
 
-              <div className="card chart-card">
+              <div className="card chart-card card-zoom">
                 <h3>Largest expenses</h3>
                 {largestExpenses.length === 0 ? (
                   <p className="hint">No expenses recorded this month.</p>

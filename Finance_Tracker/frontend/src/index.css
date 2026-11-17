@@ -453,7 +453,17 @@ button:disabled {
   gap: 0.5rem;
   font-size: 0.85rem;
 }
+.legend-list li {
+  transition: transform 0.18s ease, background-color 0.18s ease;
+  padding: 0.3rem 0.45rem;
+  border-radius: 6px;
+  transform-origin: left center;
+}
 
+.legend-list li:hover {
+  transform: scale(1.04);
+  background-color: #f8fafc;
+}
 .legend-dot {
   display: inline-block;
   width: 10px;
