@@ -7,7 +7,7 @@ import api from '../api'
 export default function IncomePage() {
   const navigate = useNavigate()
   const { logout } = useAuth()
-  const { currency, setCurrency, formatMoney } = useCurrency()
+  const { currency, setCurrency, formatMoney, toINR } = useCurrency()
 
   const [incomes, setIncomes] = useState([])
   const [loading, setLoading] = useState(true)
@@ -53,7 +53,7 @@ export default function IncomePage() {
     try {
       const res = await api.post('/incomes/', {
         ...form,
-        amount: parseFloat(form.amount),
+        amount: toINR(parseFloat(form.amount)),
       })
       setIncomes((prev) => [res.data, ...prev])
       setForm({
@@ -148,7 +148,7 @@ export default function IncomePage() {
 
             <div style={styles.twoCol}>
               <label style={styles.label}>
-                Amount
+                Amount ({currency})
                 <input
                   type="number"
                   step="0.01"

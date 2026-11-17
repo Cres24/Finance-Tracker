@@ -18,6 +18,8 @@ urlpatterns = [
     path("token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
     path("me/", views.me, name="me"),
     path("dashboard/", views.dashboard, name="dashboard"),
+    path("analytics/", views.analytics, name="analytics"),
+    path("exchange-rate/", views.exchange_rate, name="exchange-rate"),
     path("choices/", views.tracker_choices, name="tracker-choices"),
     path("", include(router.urls)),
 ]
