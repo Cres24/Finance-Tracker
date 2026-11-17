@@ -1,14 +1,15 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../AuthContext'
-import { useCurrency, CURRENCIES } from '../CurrencyContext'
+import { useCurrency } from '../CurrencyContext'
 import { CATEGORY_COLORS, nextCategoryColor } from '../categoryColors'
+import CurrencySwitch from '../components/CurrencySwitch'
 import api from '../api'
 
 export default function ExpensesPage() {
   const navigate = useNavigate()
   const { logout } = useAuth()
-  const { currency, setCurrency, formatMoney, toINR } = useCurrency()
+  const { currency, formatMoney, toINR } = useCurrency()
 
   const [expenses, setExpenses] = useState([])
   const [categories, setCategories] = useState([])
@@ -147,18 +148,7 @@ export default function ExpensesPage() {
           <small>Log expenses and manage recurring subscriptions</small>
         </div>
         <div className="header-actions">
-          <div className="currency-switch" role="group" aria-label="Display currency">
-            {Object.keys(CURRENCIES).map((code) => (
-              <button
-                key={code}
-                type="button"
-                className={currency === code ? 'active' : ''}
-                onClick={() => setCurrency(code)}
-              >
-                {CURRENCIES[code].label}
-              </button>
-            ))}
-          </div>
+          <CurrencySwitch />
           <button type="button" className="logout" onClick={() => navigate('/')}>
             ← Back to Dashboard
           </button>

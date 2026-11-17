@@ -162,7 +162,7 @@ button {
   padding: 0.6rem 1.05rem;
   border: 1px solid rgba(2, 132, 199, 0.15);
   border-radius: 999px;
-  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  background: var(--accent);
   color: #fff;
   font: inherit;
   font-size: 0.9rem;
@@ -239,34 +239,36 @@ button:disabled {
   backdrop-filter: blur(14px);
 }
 
-.dashboard > header > div:first-child {
-  position: relative;
-  padding-left: 2.1rem;
-}
-
-.dashboard > header > div:first-child::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 50%;
-  width: 1.4rem;
-  height: 1.4rem;
-  transform: translateY(-50%);
-  border-radius: 9px;
-  background: linear-gradient(135deg, #0ea5e9, #06b6d4);
-  box-shadow: 0 4px 12px rgba(6, 182, 212, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.55);
-}
-
 .dashboard header h1 {
   margin: 0;
   color: var(--text-h);
   font-size: clamp(1.35rem, 2.6vw, 1.9rem);
   font-weight: 800;
   letter-spacing: -0.035em;
+}
+
+/* Each word carries its own gradient so scaling doesn't clip the text */
+.pop-title span {
+  display: inline-block;
   background: linear-gradient(120deg, #0369a1, #0891b2, #06b6d4);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
+}
+
+.pop-title:hover span {
+  animation: word-pop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  animation-delay: calc(var(--i) * 90ms);
+}
+
+@keyframes word-pop {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+  }
+  45% {
+    transform: translateY(-6px) scale(1.14);
+  }
 }
 
 .dashboard header small,
@@ -292,8 +294,8 @@ button:disabled {
 }
 
 .currency-switch {
+  position: relative;
   display: inline-flex;
-  gap: 2px;
   padding: 3px;
   border: 1px solid var(--border);
   border-radius: 999px;
@@ -301,7 +303,25 @@ button:disabled {
   box-shadow: var(--shadow-sm);
 }
 
+/* Highlight slides between the two currencies */
+.currency-switch::before {
+  content: '';
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: 3px;
+  width: calc((100% - 6px) / var(--count));
+  border-radius: 999px;
+  background: var(--accent);
+  box-shadow: 0 3px 8px rgba(2, 132, 199, 0.25);
+  transform: translateX(calc(var(--active-index) * 100%));
+  transition: transform 0.3s cubic-bezier(0.34, 1.45, 0.64, 1);
+}
+
 .currency-switch button {
+  position: relative;
+  z-index: 1;
+  width: calc((100% - 6px) / var(--count));
   padding: 0.4rem 0.8rem;
   border: 0;
   border-radius: 999px;
@@ -318,10 +338,10 @@ button:disabled {
   color: var(--accent);
 }
 
-.currency-switch button.active {
-  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+.currency-switch button.active,
+.currency-switch button.active:hover {
   color: #fff;
-  box-shadow: 0 3px 8px rgba(2, 132, 199, 0.25);
+  text-shadow: 0 1px 2px rgba(2, 132, 199, 0.35);
 }
 
 .logout {

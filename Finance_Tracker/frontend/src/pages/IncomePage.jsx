@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../AuthContext'
-import { useCurrency, CURRENCIES } from '../CurrencyContext'
+import { useCurrency } from '../CurrencyContext'
+import CurrencySwitch from '../components/CurrencySwitch'
 import api from '../api'
 
 export default function IncomePage() {
   const navigate = useNavigate()
   const { logout } = useAuth()
-  const { currency, setCurrency, formatMoney, toINR } = useCurrency()
+  const { currency, formatMoney, toINR } = useCurrency()
 
   const [incomes, setIncomes] = useState([])
   const [loading, setLoading] = useState(true)
@@ -93,18 +94,7 @@ export default function IncomePage() {
           <small>Manage income sources and earnings history</small>
         </div>
         <div className="header-actions">
-          <div className="currency-switch" role="group" aria-label="Display currency">
-            {Object.keys(CURRENCIES).map((code) => (
-              <button
-                key={code}
-                type="button"
-                className={currency === code ? 'active' : ''}
-                onClick={() => setCurrency(code)}
-              >
-                {CURRENCIES[code].label}
-              </button>
-            ))}
-          </div>
+          <CurrencySwitch />
           <button type="button" className="logout" onClick={() => navigate('/')}>
             ← Back to Dashboard
           </button>
