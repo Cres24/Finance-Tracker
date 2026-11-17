@@ -399,8 +399,8 @@ export default function Dashboard() {
               )}
             </div>
 
-            {/* BALANCE CARD */}
-            <div className="card" style={{ overflow: 'hidden' }}>
+            {/* BALANCE CARD (with card-zoom) */}
+            <div className="card card-zoom" style={{ overflow: 'hidden' }}>
               <h3>Balance</h3>
               <p className={summary.net_savings < 0 ? 'neg' : 'pos'}>
                 {formatMoney(summary.net_savings)}
