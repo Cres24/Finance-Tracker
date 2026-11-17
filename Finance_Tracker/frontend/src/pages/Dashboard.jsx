@@ -317,9 +317,12 @@ export default function Dashboard() {
           <button type="button" onClick={() => navigate('/transactions')}>
             Set Budget
           </button>
-          {user && <span className="greeting">Hi, {user.username}</span>}
-          <button type="button" className="logout" onClick={logout}>
-            Log out
+          <button
+            type="button"
+            className="logout"
+            onClick={() => navigate('/account')}
+          >
+            {user?.username || 'Account'}
           </button>
         </div>
       </header>

@@ -3,6 +3,8 @@ from rest_framework import serializers
 
 from .models import Budget, Category, Expense, Income
 
+from django.contrib.auth.password_validation import validate_password
+
 User = get_user_model()
 
 
@@ -119,3 +121,25 @@ class ExpenseSerializer(serializers.ModelSerializer):
         if data.get("category") is not None:
             data["category"] = str(data["category"])
         return data
+class ChangePasswordSerializer(serializers.Serializer):
+    old_password = serializers.CharField(write_only=True, required=True)
+    new_password = serializers.CharField(write_only=True, required=True, min_length=6)
+    confirm_password = serializers.CharField(write_only=True, required=True)
+
+    def validate_old_password(self, value):
+        user = self.context["request"].user
+        if not user.check_password(value):
+            raise serializers.ValidationError("Current password is incorrect.")
+        return value
+
+    def validate(self, attrs):
+        if attrs["new_password"] != attrs["confirm_password"]:
+            raise serializers.ValidationError(
+                {"confirm_password": "New passwords do not match."}
+            )
+        if attrs["old_password"] == attrs["new_password"]:
+            raise serializers.ValidationError(
+                {"new_password": "New password must be different from your current password."}
+            )
+        validate_password(attrs["new_password"], self.context["request"].user)
+        return attrs

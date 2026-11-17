@@ -566,3 +566,28 @@ class ExpenseViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
+from .serializers import (
+    BudgetSerializer,
+    CategorySerializer,
+    ChangePasswordSerializer,
+    ExpenseSerializer,
+    IncomeSerializer,
+    RegisterSerializer,
+)
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def change_password(request):
+    serializer = ChangePasswordSerializer(
+        data=request.data, context={"request": request}
+    )
+    if serializer.is_valid():
+        user = request.user
+        user.set_password(serializer.validated_data["new_password"])
+        user.save(update_fields=["password"])
+        return Response(
+            {"detail": "Password updated successfully."},
+            status=status.HTTP_200_OK,
+        )
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
