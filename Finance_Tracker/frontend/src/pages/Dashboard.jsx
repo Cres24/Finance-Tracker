@@ -8,6 +8,8 @@ import {
   ResponsiveContainer,
   AreaChart,
   Area,
+  BarChart,
+  Bar,
   XAxis,
   ReferenceLine,
 } from 'recharts'
@@ -21,6 +23,8 @@ const BUCKET_COLORS = {
   investment: '#16a34a',    // Green
   miscellaneous: '#eab308', // Yellow
 }
+
+const INCOME_COLORS = ['#2563eb', '#16a34a', '#0d9488', '#7c3aed', '#f59e0b', '#ec4899']
 
 function BucketRow({ label, spent, budget_limit, formatMoney }) {
   const pct = budget_limit ? Math.min((spent / budget_limit) * 100, 100) : 0
@@ -218,6 +222,15 @@ export default function Dashboard() {
   const incomes = data?.income_by_source || []
   const recentExpenses = data?.recent_expenses || []
 
+  // Income bar chart data by source
+  const incomeChartData = incomes
+    .map((inc, idx) => ({
+      source: inc.source,
+      total: Number(inc.total || 0),
+      color: INCOME_COLORS[idx % INCOME_COLORS.length],
+    }))
+    .filter((item) => item.total > 0)
+
   // Pie chart data: Essentials (Blue), Investment (Green), Miscellaneous (Yellow)
   const pieData = budgets
     .map((b) => ({
@@ -324,8 +337,8 @@ export default function Dashboard() {
       {data && (
         <>
           <div className="stats">
-            {/* INCOME CARD (with card-zoom) */}
-            <div className="card card-zoom">
+            {/* INCOME CARD (with bar graph by source & card-zoom) */}
+            <div className="card card-zoom" style={{ overflow: 'hidden' }}>
               <div style={styles.statHeader}>
                 <h3 style={{ margin: 0 }}>Income</h3>
                 <button
@@ -337,6 +350,52 @@ export default function Dashboard() {
                 </button>
               </div>
               <p>{formatMoney(summary.total_income)}</p>
+
+              {/* Income Sources Bar Graph */}
+              {incomeChartData.length > 0 ? (
+                <div style={styles.pieWrapper}>
+                  <div className="chart-zoom" style={{ width: '100%', height: 130 }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart
+                        data={incomeChartData}
+                        margin={{ top: 8, right: 4, left: 4, bottom: 0 }}
+                      >
+                        <XAxis
+                          dataKey="source"
+                          tick={{ fontSize: 10, fill: '#6b7280' }}
+                          axisLine={false}
+                          tickLine={false}
+                          interval={0}
+                        />
+                        <Tooltip formatter={(value) => [formatMoney(value), 'Income']} />
+                        <Bar dataKey="total" radius={[4, 4, 0, 0]} maxBarSize={36}>
+                          {incomeChartData.map((entry) => (
+                            <Cell key={entry.source} fill={entry.color} />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+
+                  <div style={styles.pieLegend}>
+                    {incomeChartData.map((item) => (
+                      <div key={item.source} style={styles.legendItem}>
+                        <span
+                          style={{
+                            ...styles.legendDot,
+                            backgroundColor: item.color,
+                          }}
+                        />
+                        <span>{item.source}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <small style={{ color: 'var(--muted)', display: 'block', marginTop: '0.5rem' }}>
+                  No income sources to chart yet.
+                </small>
+              )}
             </div>
 
             {/* EXPENSES CARD (with card-zoom) */}
