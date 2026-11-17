@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useCurrency } from "../CurrencyContext";
+import { CATEGORY_COLORS, nextCategoryColor } from "../categoryColors";
 
 const API_BASE = "http://127.0.0.1:8000/api";
 
@@ -62,6 +63,7 @@ export default function TransactionEntryPage({ onTransactionAdded }) {
   const [categoryForm, setCategoryForm] = useState({
     name: "",
     bucket: "essentials",
+    color: "",
   });
 
   const getAuthHeaders = () => {
@@ -195,10 +197,16 @@ export default function TransactionEntryPage({ onTransactionAdded }) {
 
   const submitCategory = (e) => {
     e.preventDefault();
-    handleApiSubmit("categories", categoryForm, (newCat) => {
+    const payload = {
+      ...categoryForm,
+      color:
+        categoryForm.color ||
+        nextCategoryColor(categories.map((cat) => cat.color)),
+    };
+    handleApiSubmit("categories", payload, (newCat) => {
       setCategories((prev) => [...prev, newCat]);
       setExpenseForm((prev) => ({ ...prev, category: String(newCat.id) }));
-      setCategoryForm({ name: "", bucket: "essentials" });
+      setCategoryForm({ name: "", bucket: "essentials", color: "" });
     });
   };
 
@@ -532,6 +540,38 @@ export default function TransactionEntryPage({ onTransactionAdded }) {
             </select>
           </label>
 
+          <label style={styles.label}>
+            Category Color
+            <input
+              type="color"
+              value={
+                categoryForm.color ||
+                nextCategoryColor(categories.map((cat) => cat.color))
+              }
+              onChange={(e) =>
+                setCategoryForm({ ...categoryForm, color: e.target.value })
+              }
+              style={styles.colorInput}
+            />
+          </label>
+
+          <div style={styles.swatchRow}>
+            {CATEGORY_COLORS.map((color) => (
+              <button
+                key={color}
+                type="button"
+                aria-label={`Use color ${color}`}
+                onClick={() => setCategoryForm({ ...categoryForm, color })}
+                style={{
+                  ...styles.swatch,
+                  background: color,
+                  borderColor:
+                    categoryForm.color === color ? "#0f172a" : "transparent",
+                }}
+              />
+            ))}
+          </div>
+
           <button type="submit" disabled={loading} style={styles.submitBtn}>
             {loading ? "Saving..." : "Create Category"}
           </button>
@@ -627,6 +667,28 @@ const styles = {
     color: "#ffffff",
     fontSize: "1rem",
     fontWeight: 600,
+    cursor: "pointer",
+  },
+  colorInput: {
+    padding: "0.2rem",
+    width: "100%",
+    height: "40px",
+    border: "1px solid #cbd5e1",
+    borderRadius: "8px",
+    background: "#ffffff",
+    cursor: "pointer",
+  },
+  swatchRow: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: "0.4rem",
+  },
+  swatch: {
+    width: "24px",
+    height: "24px",
+    padding: 0,
+    borderRadius: "50%",
+    border: "2px solid transparent",
     cursor: "pointer",
   },
 };

@@ -25,10 +25,13 @@ class RegisterSerializer(serializers.ModelSerializer):
 class CategorySerializer(serializers.ModelSerializer):
     id = serializers.CharField(read_only=True)
     bucket_display = serializers.CharField(source="get_bucket_display", read_only=True)
+    color = serializers.RegexField(
+        r"^#[0-9a-fA-F]{6}$", required=False, allow_blank=False
+    )
 
     class Meta:
         model = Category
-        fields = ["id", "name", "bucket", "bucket_display"]
+        fields = ["id", "name", "bucket", "bucket_display", "color"]
 
 
 class IncomeSerializer(serializers.ModelSerializer):
@@ -53,6 +56,7 @@ class ExpenseSerializer(serializers.ModelSerializer):
     category = serializers.PrimaryKeyRelatedField(queryset=Category.objects.all())
     category_name = serializers.CharField(source="category.name", read_only=True)
     category_bucket = serializers.CharField(source="category.bucket", read_only=True)
+    category_color = serializers.CharField(source="category.color", read_only=True)
     payment_mode_display = serializers.CharField(source="get_payment_mode_display", read_only=True)
     recurrence_unit_display = serializers.CharField(
         source="get_recurrence_unit_display", read_only=True
@@ -66,6 +70,7 @@ class ExpenseSerializer(serializers.ModelSerializer):
             "category",
             "category_name",
             "category_bucket",
+            "category_color",
             "amount",
             "merchant",
             "payment_mode",

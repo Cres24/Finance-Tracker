@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../AuthContext'
 import { useCurrency, CURRENCIES } from '../CurrencyContext'
+import { CATEGORY_COLORS, nextCategoryColor } from '../categoryColors'
 import api from '../api'
 
 function BucketRow({ label, spent, budget_limit, formatMoney }) {
@@ -50,6 +51,7 @@ export default function Dashboard() {
     category: '',
     customCategoryName: '',
     customBucket: 'essentials',
+    customColor: '',
     amount: '',
     merchant: '',
     payment_mode: 'online',
@@ -143,6 +145,9 @@ export default function Dashboard() {
           const catRes = await api.post('/categories/', {
             name: nameToUse,
             bucket: expenseForm.customBucket,
+            color:
+              expenseForm.customColor ||
+              nextCategoryColor(categories.map((c) => c.color)),
           })
           categoryId = String(catRes.data.id)
         }
@@ -166,6 +171,7 @@ export default function Dashboard() {
         amount: '',
         merchant: '',
         customCategoryName: '',
+        customColor: '',
         category: categoryId,
         spent_at: new Date().toISOString().slice(0, 16),
       }))
@@ -212,6 +218,9 @@ export default function Dashboard() {
               </button>
             ))}
           </div>
+          <button type="button" onClick={() => navigate('/analytics')}>
+            Analytics
+          </button>
           <button type="button" onClick={() => navigate('/transactions')}>
             Set Budgets / Full Form
           </button>
@@ -422,27 +431,70 @@ export default function Dashboard() {
                   </div>
 
                   {(expenseForm.category === '__custom__' || categories.length === 0) && (
-                    <div style={styles.twoCol}>
+                    <>
+                      <div style={styles.twoCol}>
+                        <input
+                          type="text"
+                          required
+                          placeholder="Category name (e.g. Food, Rent)"
+                          value={expenseForm.customCategoryName}
+                          onChange={(e) =>
+                            setExpenseForm({
+                              ...expenseForm,
+                              customCategoryName: e.target.value,
+                            })
+                          }
+                        />
+                        <select
+                          value={expenseForm.customBucket}
+                          onChange={(e) =>
+                            setExpenseForm({
+                              ...expenseForm,
+                              customBucket: e.target.value,
+                            })
+                          }
+                        >
+                          <option value="essentials">Essentials</option>
+                          <option value="investment">Investment</option>
+                          <option value="miscellaneous">Miscellaneous</option>
+                        </select>
+                      </div>
                       <input
-                        type="text"
-                        required
-                        placeholder="Category name (e.g. Food, Rent)"
-                        value={expenseForm.customCategoryName}
-                        onChange={(e) =>
-                          setExpenseForm({ ...expenseForm, customCategoryName: e.target.value })
+                        type="color"
+                        aria-label="Category color"
+                        value={
+                          expenseForm.customColor ||
+                          nextCategoryColor(categories.map((c) => c.color))
                         }
+                        onChange={(e) =>
+                          setExpenseForm({
+                            ...expenseForm,
+                            customColor: e.target.value,
+                          })
+                        }
+                        style={styles.colorInput}
                       />
-                      <select
-                        value={expenseForm.customBucket}
-                        onChange={(e) =>
-                          setExpenseForm({ ...expenseForm, customBucket: e.target.value })
-                        }
-                      >
-                        <option value="essentials">Essentials</option>
-                        <option value="investment">Investment</option>
-                        <option value="miscellaneous">Miscellaneous</option>
-                      </select>
-                    </div>
+                      <div style={styles.swatchRow}>
+                        {CATEGORY_COLORS.map((color) => (
+                          <button
+                            key={color}
+                            type="button"
+                            aria-label={`Use color ${color}`}
+                            onClick={() =>
+                              setExpenseForm({ ...expenseForm, customColor: color })
+                            }
+                            style={{
+                              ...styles.swatch,
+                              background: color,
+                              borderColor:
+                                expenseForm.customColor === color
+                                  ? '#0f172a'
+                                  : 'transparent',
+                            }}
+                          />
+                        ))}
+                      </div>
+                    </>
                   )}
 
                   <input
@@ -528,6 +580,10 @@ export default function Dashboard() {
                 recentExpenses.map((t) => (
                   <div className="row" key={t.id}>
                     <span>
+                      <span
+                        className="legend-dot"
+                        style={{ background: t.category_color || '#6b7280' }}
+                      />
                       {t.merchant || t.notes || t.category_name}
                       <small>
                         {' '}
@@ -593,5 +649,27 @@ const styles = {
     gap: '0.45rem',
     fontSize: '0.85rem',
     color: '#374151',
+  },
+  colorInput: {
+    padding: '0.2rem',
+    width: '100%',
+    height: '40px',
+    border: '1px solid #e5e7eb',
+    borderRadius: '6px',
+    background: '#ffffff',
+    cursor: 'pointer',
+  },
+  swatchRow: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '0.4rem',
+  },
+  swatch: {
+    width: '24px',
+    height: '24px',
+    padding: 0,
+    borderRadius: '50%',
+    border: '2px solid transparent',
+    cursor: 'pointer',
   },
 }

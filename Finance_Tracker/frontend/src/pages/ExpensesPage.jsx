@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../AuthContext'
 import { useCurrency, CURRENCIES } from '../CurrencyContext'
+import { CATEGORY_COLORS, nextCategoryColor } from '../categoryColors'
 import api from '../api'
 
 export default function ExpensesPage() {
@@ -18,7 +19,7 @@ export default function ExpensesPage() {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
 
-  const [newCat, setNewCat] = useState({ name: '', bucket: 'essentials' })
+  const [newCat, setNewCat] = useState({ name: '', bucket: 'essentials', color: '' })
   const [form, setForm] = useState({
     category: '',
     amount: '',
@@ -69,10 +70,13 @@ export default function ExpensesPage() {
     setSaving(true)
     setError('')
     try {
-      const res = await api.post('/categories/', newCat)
+      const res = await api.post('/categories/', {
+        ...newCat,
+        color: newCat.color || nextCategoryColor(categories.map((cat) => cat.color)),
+      })
       setCategories((prev) => [...prev, res.data])
       setForm((prev) => ({ ...prev, category: String(res.data.id) }))
-      setNewCat({ name: '', bucket: 'essentials' })
+      setNewCat({ name: '', bucket: 'essentials', color: '' })
       setShowNewCat(false)
       setSuccess(`Category "${res.data.name}" created.`)
     } catch {
@@ -222,6 +226,35 @@ export default function ExpensesPage() {
                 </select>
               </label>
 
+              <label style={styles.label}>
+                Category Color
+                <input
+                  type="color"
+                  value={
+                    newCat.color ||
+                    nextCategoryColor(categories.map((cat) => cat.color))
+                  }
+                  onChange={(e) => setNewCat({ ...newCat, color: e.target.value })}
+                  style={styles.colorInput}
+                />
+              </label>
+
+              <div style={styles.swatchRow}>
+                {CATEGORY_COLORS.map((color) => (
+                  <button
+                    key={color}
+                    type="button"
+                    aria-label={`Use color ${color}`}
+                    onClick={() => setNewCat({ ...newCat, color })}
+                    style={{
+                      ...styles.swatch,
+                      background: color,
+                      borderColor: newCat.color === color ? '#0f172a' : 'transparent',
+                    }}
+                  />
+                ))}
+              </div>
+
               <button type="submit" disabled={saving}>
                 {saving ? 'Saving...' : 'Create Category'}
               </button>
@@ -370,6 +403,10 @@ export default function ExpensesPage() {
               <div className="row" key={exp.id} style={{ alignItems: 'center' }}>
                 <div>
                   <div>
+                    <span
+                      className="legend-dot"
+                      style={{ background: exp.category_color || '#6b7280' }}
+                    />
                     <strong>{exp.merchant || exp.category_name}</strong>
                     {exp.is_recurring && (
                       <small style={styles.badge}>{exp.recurrence_summary}</small>
@@ -449,6 +486,28 @@ const styles = {
     borderRadius: '999px',
     fontWeight: 600,
     marginLeft: '0.4rem',
+  },
+  colorInput: {
+    padding: '0.2rem',
+    width: '100%',
+    height: '40px',
+    border: '1px solid var(--border)',
+    borderRadius: '6px',
+    background: 'var(--card-bg)',
+    cursor: 'pointer',
+  },
+  swatchRow: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '0.4rem',
+  },
+  swatch: {
+    width: '24px',
+    height: '24px',
+    padding: 0,
+    borderRadius: '50%',
+    border: '2px solid transparent',
+    cursor: 'pointer',
   },
   deleteBtn: {
     padding: '0.15rem 0.5rem',

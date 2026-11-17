@@ -1,4 +1,5 @@
 // frontend/src/App.jsx
+import { lazy, Suspense } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import ProtectedRoute from './ProtectedRoute'
 import Login from './pages/Login'
@@ -7,6 +8,8 @@ import Dashboard from './pages/Dashboard'
 import TransactionEntryPage from './pages/TransactionEntryPage'
 import IncomePage from './pages/IncomePage'
 import ExpensesPage from './pages/ExpensesPage'
+
+const AnalyticsPage = lazy(() => import('./pages/AnalyticsPage'))
 
 export default function App() {
   return (
@@ -42,6 +45,16 @@ export default function App() {
         element={
           <ProtectedRoute>
             <TransactionEntryPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/analytics"
+        element={
+          <ProtectedRoute>
+            <Suspense fallback={<p className="loading">Loading analytics...</p>}>
+              <AnalyticsPage />
+            </Suspense>
           </ProtectedRoute>
         }
       />

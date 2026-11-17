@@ -2,6 +2,34 @@
 from django.conf import settings
 from django.db import models
 
+CATEGORY_COLORS = [
+    "#2563eb",
+    "#16a34a",
+    "#f59e0b",
+    "#db2777",
+    "#7c3aed",
+    "#0891b2",
+    "#ea580c",
+    "#65a30d",
+    "#dc2626",
+    "#4f46e5",
+    "#0d9488",
+    "#9333ea",
+]
+
+BUCKET_COLORS = {
+    "essentials": "#2563eb",
+    "investment": "#16a34a",
+    "miscellaneous": "#f59e0b",
+}
+
+PAYMENT_MODE_COLORS = {
+    "cash": "#16a34a",
+    "card": "#2563eb",
+    "netbanking": "#7c3aed",
+    "online": "#0891b2",
+}
+
 
 class Category(models.Model):
     BUCKET_CHOICES = [
@@ -13,6 +41,7 @@ class Category(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     name = models.CharField(max_length=100)  # e.g., "Groceries", "SIP", "Dining Out"
     bucket = models.CharField(max_length=20, choices=BUCKET_CHOICES)
+    color = models.CharField(max_length=7, default="#2563eb")
 
     class Meta:
         unique_together = ("user", "name", "bucket")

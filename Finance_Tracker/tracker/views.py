@@ -1,7 +1,9 @@
 # tracker/views.py
+import calendar
 import json
 import urllib.request
 from collections import defaultdict
+from datetime import date
 from decimal import Decimal
 
 from django.core.cache import cache
@@ -11,7 +13,15 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
-from .models import Budget, Category, Expense, Income
+from .models import (
+    BUCKET_COLORS,
+    CATEGORY_COLORS,
+    PAYMENT_MODE_COLORS,
+    Budget,
+    Category,
+    Expense,
+    Income,
+)
 from .serializers import (
     BudgetSerializer,
     CategorySerializer,
@@ -21,9 +31,9 @@ from .serializers import (
 )
 
 DEFAULT_CATEGORIES = [
-    ("Essentials", "essentials"),
-    ("Investment", "investment"),
-    ("Miscellaneous", "miscellaneous"),
+    ("Essentials", "essentials", BUCKET_COLORS["essentials"]),
+    ("Investment", "investment", BUCKET_COLORS["investment"]),
+    ("Miscellaneous", "miscellaneous", BUCKET_COLORS["miscellaneous"]),
 ]
 
 EXCHANGE_CACHE_KEY = "inr_npr_exchange_rate"
@@ -117,6 +127,7 @@ def tracker_choices(request):
             "payment_modes": [
                 {"value": k, "label": v} for k, v in Expense.PAYMENT_MODES
             ],
+            "category_colors": CATEGORY_COLORS,
         }
     )
 
@@ -239,6 +250,247 @@ def dashboard(request):
     )
 
 
+def _shift_month(year, month, delta):
+    index = year * 12 + (month - 1) + delta
+    return index // 12, index % 12 + 1
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def analytics(request):
+    user = request.user
+    now = timezone.localtime(timezone.now())
+
+    month_param = request.query_params.get("month")
+    if month_param:
+        try:
+            year_str, month_str = month_param.split("-")
+            year, month = int(year_str), int(month_str)
+            if not 1 <= month <= 12:
+                raise ValueError
+        except ValueError:
+            return Response(
+                {"detail": "Invalid month format. Use YYYY-MM."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+    else:
+        year, month = now.year, now.month
+
+    try:
+        trend_months = int(request.query_params.get("trend_months", 6))
+    except (TypeError, ValueError):
+        trend_months = 6
+    trend_months = max(3, min(trend_months, 12))
+
+    month_start = date(year, month, 1)
+
+    # Aggregate in Python for full django-mongodb-backend compatibility
+    incomes = list(
+        Income.objects.filter(
+            user=user, date_received__year=year, date_received__month=month
+        )
+    )
+    expenses = list(
+        Expense.objects.select_related("category").filter(
+            user=user, spent_at__year=year, spent_at__month=month
+        )
+    )
+    budgets = list(Budget.objects.filter(user=user, month=month_start))
+
+    total_income = sum((item.amount for item in incomes), Decimal("0.00"))
+    total_expense = sum((item.amount for item in expenses), Decimal("0.00"))
+    net_savings = total_income - total_expense
+    savings_rate = (
+        float(net_savings / total_income * 100) if total_income else 0.0
+    )
+
+    if year == now.year and month == now.month:
+        effective_days = max(now.day, 1)
+    else:
+        effective_days = calendar.monthrange(year, month)[1]
+    average_daily_spend = (
+        float(total_expense / effective_days) if total_expense else 0.0
+    )
+
+    # Category breakdown
+    category_totals = defaultdict(lambda: {"total": Decimal("0.00"), "count": 0})
+    category_meta = {}
+    for exp in expenses:
+        key = str(exp.category_id)
+        category_totals[key]["total"] += exp.amount
+        category_totals[key]["count"] += 1
+        category_meta[key] = exp.category
+
+    category_breakdown = []
+    for index, (cat_id, agg) in enumerate(
+        sorted(category_totals.items(), key=lambda item: item[1]["total"], reverse=True)
+    ):
+        cat = category_meta.get(cat_id)
+        color = (
+            cat.color
+            if cat and cat.color
+            else CATEGORY_COLORS[index % len(CATEGORY_COLORS)]
+        )
+        category_breakdown.append(
+            {
+                "category": cat_id,
+                "name": cat.name if cat else "Uncategorized",
+                "bucket": cat.bucket if cat else "",
+                "color": color,
+                "total": float(agg["total"]),
+                "percentage": (
+                    float(agg["total"] / total_expense * 100) if total_expense else 0.0
+                ),
+                "count": agg["count"],
+            }
+        )
+
+    # Bucket breakdown
+    spend_by_bucket = defaultdict(lambda: Decimal("0.00"))
+    spend_by_payment_mode = defaultdict(lambda: Decimal("0.00"))
+    merchant_totals = defaultdict(lambda: {"total": Decimal("0.00"), "count": 0})
+    for exp in expenses:
+        spend_by_bucket[exp.category.bucket] += exp.amount
+        spend_by_payment_mode[exp.payment_mode] += exp.amount
+        if exp.merchant:
+            merchant_totals[exp.merchant]["total"] += exp.amount
+            merchant_totals[exp.merchant]["count"] += 1
+
+    bucket_breakdown = [
+        {
+            "bucket": key,
+            "label": label,
+            "total": float(spend_by_bucket.get(key, Decimal("0.00"))),
+            "percentage": (
+                float(spend_by_bucket.get(key, Decimal("0.00")) / total_expense * 100)
+                if total_expense
+                else 0.0
+            ),
+            "color": BUCKET_COLORS.get(key, "#6b7280"),
+        }
+        for key, label in Category.BUCKET_CHOICES
+    ]
+
+    payment_mode_breakdown = [
+        {
+            "payment_mode": key,
+            "label": label,
+            "total": float(spend_by_payment_mode.get(key, Decimal("0.00"))),
+            "percentage": (
+                float(spend_by_payment_mode.get(key, Decimal("0.00")) / total_expense * 100)
+                if total_expense
+                else 0.0
+            ),
+            "color": PAYMENT_MODE_COLORS.get(key, "#6b7280"),
+        }
+        for key, label in Expense.PAYMENT_MODES
+    ]
+
+    recurring_expenses = [exp for exp in expenses if exp.is_recurring]
+    recurring_total = sum(
+        (exp.amount for exp in recurring_expenses), Decimal("0.00")
+    )
+
+    # Trend across the selected window, ending at the selected month
+    trend = []
+    for delta in range(-(trend_months - 1), 1):
+        t_year, t_month = _shift_month(year, month, delta)
+        t_incomes = Income.objects.filter(
+            user=user, date_received__year=t_year, date_received__month=t_month
+        )
+        t_expenses = Expense.objects.filter(
+            user=user, spent_at__year=t_year, spent_at__month=t_month
+        )
+        t_income = sum((item.amount for item in t_incomes), Decimal("0.00"))
+        t_expense = sum((item.amount for item in t_expenses), Decimal("0.00"))
+        trend.append(
+            {
+                "month": f"{t_year:04d}-{t_month:02d}",
+                "income": float(t_income),
+                "expense": float(t_expense),
+                "savings": float(t_income - t_expense),
+            }
+        )
+
+    top_merchants = [
+        {
+            "merchant": merchant,
+            "total": float(value["total"]),
+            "count": value["count"],
+        }
+        for merchant, value in sorted(
+            merchant_totals.items(),
+            key=lambda item: item[1]["total"],
+            reverse=True,
+        )[:5]
+    ]
+
+    # Budget vs. actual per bucket
+    budget_map = {b.bucket: b.limit_amount for b in budgets}
+    budget_comparison = []
+    for bucket_key, bucket_label in Category.BUCKET_CHOICES:
+        limit_val = budget_map.get(bucket_key, Decimal("0.00"))
+        spent_val = spend_by_bucket.get(bucket_key, Decimal("0.00"))
+        budget_comparison.append(
+            {
+                "bucket": bucket_key,
+                "label": bucket_label,
+                "budget_limit": float(limit_val),
+                "spent": float(spent_val),
+                "remaining": float(limit_val - spent_val),
+                "color": BUCKET_COLORS.get(bucket_key, "#6b7280"),
+            }
+        )
+
+    income_by_source_map = defaultdict(lambda: Decimal("0.00"))
+    for inc in incomes:
+        income_by_source_map[inc.source] += inc.amount
+
+    largest_expenses = ExpenseSerializer(
+        sorted(expenses, key=lambda e: e.amount, reverse=True)[:10],
+        many=True,
+        context={"request": request},
+    ).data
+
+    return Response(
+        {
+            "month": f"{year:04d}-{month:02d}",
+            "trend_months": trend_months,
+            "summary": {
+                "total_income": float(total_income),
+                "total_expense": float(total_expense),
+                "net_savings": float(net_savings),
+                "savings_rate": round(savings_rate, 2),
+                "recurring_total": float(recurring_total),
+                "one_time_total": float(total_expense - recurring_total),
+                "recurring_count": len(recurring_expenses),
+                "transaction_count": len(expenses),
+                "average_daily_spend": round(average_daily_spend, 2),
+            },
+            "category_breakdown": category_breakdown,
+            "bucket_breakdown": bucket_breakdown,
+            "payment_mode_breakdown": payment_mode_breakdown,
+            "recurring": {
+                "total": float(recurring_total),
+                "one_time_total": float(total_expense - recurring_total),
+                "count": len(recurring_expenses),
+            },
+            "trend": trend,
+            "top_merchants": top_merchants,
+            "budget_comparison": budget_comparison,
+            "largest_expenses": largest_expenses,
+            "income_by_source": sorted(
+                [
+                    {"source": source, "total": float(amount)}
+                    for source, amount in income_by_source_map.items()
+                ],
+                key=lambda item: item["total"],
+                reverse=True,
+            ),
+        }
+    )
+
+
 class CategoryViewSet(viewsets.ModelViewSet):
     serializer_class = CategorySerializer
     permission_classes = [IsAuthenticated]
@@ -246,15 +498,28 @@ class CategoryViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         qs = Category.objects.filter(user=self.request.user)
         if not qs.exists():
-            for name, bucket in DEFAULT_CATEGORIES:
+            for name, bucket, color in DEFAULT_CATEGORIES:
                 Category.objects.get_or_create(
-                    user=self.request.user, name=name, defaults={"bucket": bucket}
+                    user=self.request.user,
+                    name=name,
+                    defaults={"bucket": bucket, "color": color},
                 )
             qs = Category.objects.filter(user=self.request.user)
         return qs.order_by("bucket", "name")
 
     def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
+        color = serializer.validated_data.get("color")
+        if not color:
+            existing_colors = list(
+                Category.objects.filter(user=self.request.user).values_list(
+                    "color", flat=True
+                )
+            )
+            color = next(
+                (c for c in CATEGORY_COLORS if c not in existing_colors),
+                CATEGORY_COLORS[len(existing_colors) % len(CATEGORY_COLORS)],
+            )
+        serializer.save(user=self.request.user, color=color)
 
 
 class IncomeViewSet(viewsets.ModelViewSet):
