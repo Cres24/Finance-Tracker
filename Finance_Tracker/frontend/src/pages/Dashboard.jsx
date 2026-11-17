@@ -1,6 +1,16 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts'
+import {
+  PieChart,
+  Pie,
+  Cell,
+  Tooltip,
+  ResponsiveContainer,
+  AreaChart,
+  Area,
+  XAxis,
+  ReferenceLine,
+} from 'recharts'
 import { useAuth } from '../AuthContext'
 import { useCurrency, CURRENCIES } from '../CurrencyContext'
 import { CATEGORY_COLORS, nextCategoryColor } from '../categoryColors'
@@ -40,6 +50,7 @@ export default function Dashboard() {
 
   const [data, setData] = useState(null)
   const [categories, setCategories] = useState([])
+  const [allExpenses, setAllExpenses] = useState([])
   const [error, setError] = useState('')
 
   const [showIncomeForm, setShowIncomeForm] = useState(false)
@@ -71,15 +82,19 @@ export default function Dashboard() {
   const loadDashboard = useCallback(
     async (ignore = false) => {
       try {
-        const [dashRes, catRes] = await Promise.all([
+        const [dashRes, catRes, expRes] = await Promise.all([
           api.get('/dashboard/'),
           api.get('/categories/'),
+          api.get('/expenses/'),
         ])
         if (ignore) return
 
         setData(dashRes.data)
         const catList = Array.isArray(catRes.data) ? catRes.data : catRes.data.results || []
+        const expList = Array.isArray(expRes.data) ? expRes.data : expRes.data.results || []
         setCategories(catList)
+        setAllExpenses(expList)
+
         if (catList.length > 0) {
           setExpenseForm((prev) => ({
             ...prev,
@@ -138,7 +153,6 @@ export default function Dashboard() {
     try {
       let categoryId = expenseForm.category
 
-      // If user chose "+ Custom category..." or no category ID exists yet, create it seamlessly first
       if (categoryId === '__custom__' || !categoryId) {
         const nameToUse =
           expenseForm.customCategoryName.trim() ||
@@ -213,6 +227,56 @@ export default function Dashboard() {
       color: BUCKET_COLORS[b.bucket] || '#6b7280',
     }))
     .filter((item) => item.value > 0)
+
+  // Daily budget & daily spend series for the Balance card graph
+  const { dailyBudgetData, dailyBudgetTarget, hasDailyData } = useMemo(() => {
+    if (!data?.month) {
+      return { dailyBudgetData: [], dailyBudgetTarget: 0, hasDailyData: false }
+    }
+
+    const [yearStr, monthStr] = data.month.split('-')
+    const year = Number(yearStr)
+    const month = Number(monthStr)
+    const daysInMonth = new Date(year, month, 0).getDate()
+
+    const totalMonthlyBudget = budgets.reduce(
+      (sum, b) => sum + Number(b.budget_limit || 0),
+      0
+    )
+    const dailyAllowance = totalMonthlyBudget > 0 ? totalMonthlyBudget / daysInMonth : 0
+
+    // Sum expenses per day of the active month
+    const spendByDay = {}
+    allExpenses.forEach((exp) => {
+      const dt = new Date(exp.spent_at)
+      if (dt.getFullYear() === year && dt.getMonth() + 1 === month) {
+        const day = dt.getDate()
+        spendByDay[day] = (spendByDay[day] || 0) + Number(exp.amount || 0)
+      }
+    })
+
+    const today = new Date()
+    const isCurrentMonth =
+      today.getFullYear() === year && today.getMonth() + 1 === month
+    const lastDayToPlot = isCurrentMonth ? today.getDate() : daysInMonth
+
+    const series = []
+    for (let d = 1; d <= lastDayToPlot; d++) {
+      const spent = spendByDay[d] || 0
+      series.push({
+        day: `${d}`,
+        spent,
+        dailyBudget: Number(dailyAllowance.toFixed(2)),
+        remainingDaily: Number((dailyAllowance - spent).toFixed(2)),
+      })
+    }
+
+    return {
+      dailyBudgetData: series,
+      dailyBudgetTarget: dailyAllowance,
+      hasDailyData: totalMonthlyBudget > 0 || Object.keys(spendByDay).length > 0,
+    }
+  }, [data?.month, budgets, allExpenses])
 
   return (
     <div className="dashboard">
@@ -339,6 +403,76 @@ export default function Dashboard() {
               <p className={summary.net_savings < 0 ? 'neg' : 'pos'}>
                 {formatMoney(summary.net_savings)}
               </p>
+
+              {/* Everyday Budget vs. Spend Graph */}
+              {hasDailyData ? (
+                <div style={styles.pieWrapper}>
+                  <div style={styles.dailyHeader}>
+                    <span>Daily budget</span>
+                    <strong>
+                      {dailyBudgetTarget > 0
+                        ? `${formatMoney(dailyBudgetTarget)}/day`
+                        : 'No budget set'}
+                    </strong>
+                  </div>
+
+                  <div style={{ width: '100%', height: 112 }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart
+                        data={dailyBudgetData}
+                        margin={{ top: 6, right: 4, left: 4, bottom: 0 }}
+                      >
+                        <XAxis
+                          dataKey="day"
+                          tick={{ fontSize: 10, fill: '#6b7280' }}
+                          axisLine={false}
+                          tickLine={false}
+                          interval="preserveStartEnd"
+                        />
+                        <Tooltip
+                          labelFormatter={(day) => `Day ${day}`}
+                          formatter={(value, name) => [
+                            formatMoney(value),
+                            name === 'spent' ? 'Spent' : 'Daily Budget',
+                          ]}
+                        />
+                        {dailyBudgetTarget > 0 && (
+                          <ReferenceLine
+                            y={dailyBudgetTarget}
+                            stroke="#16a34a"
+                            strokeDasharray="3 3"
+                          />
+                        )}
+                        <Area
+                          type="monotone"
+                          dataKey="spent"
+                          stroke="#16a34a"
+                          strokeWidth={2}
+                          fill="#16a34a"
+                          fillOpacity={0.14}
+                        />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+
+                  <div style={styles.pieLegend}>
+                    <div style={styles.legendItem}>
+                      <span style={{ ...styles.legendDot, backgroundColor: '#16a34a' }} />
+                      <span>Daily spend</span>
+                    </div>
+                    {dailyBudgetTarget > 0 && (
+                      <div style={styles.legendItem}>
+                        <span style={{ ...styles.legendDot, backgroundColor: '#16a34a' }} />
+                        <span>Daily limit</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <small style={{ color: 'var(--muted)', display: 'block', marginTop: '0.5rem' }}>
+                  Set a budget to see your everyday target.
+                </small>
+              )}
             </div>
           </div>
 
@@ -686,6 +820,14 @@ const styles = {
     marginTop: '0.75rem',
     paddingTop: '0.65rem',
     borderTop: '1px solid var(--border)',
+  },
+  dailyHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    fontSize: '0.75rem',
+    color: 'var(--muted)',
+    marginBottom: '0.25rem',
   },
   pieLegend: {
     display: 'flex',
