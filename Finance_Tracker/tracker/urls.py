@@ -22,4 +22,5 @@ urlpatterns = [
     path("exchange-rate/", views.exchange_rate, name="exchange-rate"),
     path("choices/", views.tracker_choices, name="tracker-choices"),
     path("", include(router.urls)),
+    path("auth/change-password/", views.change_password, name="change_password"),
 ]

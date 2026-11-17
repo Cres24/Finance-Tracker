@@ -8,6 +8,7 @@ import Dashboard from './pages/Dashboard'
 import TransactionEntryPage from './pages/TransactionEntryPage'
 import IncomePage from './pages/IncomePage'
 import ExpensesPage from './pages/ExpensesPage'
+import ChangePasswordPage from './pages/ChangePasswordPage'
 
 const AnalyticsPage = lazy(() => import('./pages/AnalyticsPage'))
 
@@ -55,6 +56,14 @@ export default function App() {
             <Suspense fallback={<p className="loading">Loading analytics...</p>}>
               <AnalyticsPage />
             </Suspense>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/change-password"
+        element={
+          <ProtectedRoute>
+            <ChangePasswordPage />
           </ProtectedRoute>
         }
       />
