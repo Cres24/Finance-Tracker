@@ -7,12 +7,18 @@ User = get_user_model()
 
 
 class RegisterSerializer(serializers.ModelSerializer):
-    id = serializers.CharField(read_only=True)
-    password = serializers.CharField(write_only=True, min_length=8)
+    password = serializers.CharField(write_only=True, min_length=6)
+    password2 = serializers.CharField(write_only=True, required=False)
 
     class Meta:
         model = User
-        fields = ["id", "username", "email", "password"]
+        fields = ("id", "username", "email", "password", "password2")
+
+    def validate(self, attrs):
+        password2 = attrs.pop("password2", None)
+        if password2 is not None and attrs.get("password") != password2:
+            raise serializers.ValidationError({"password2": "Passwords do not match."})
+        return attrs
 
     def create(self, validated_data):
         return User.objects.create_user(
@@ -20,7 +26,6 @@ class RegisterSerializer(serializers.ModelSerializer):
             email=validated_data.get("email", ""),
             password=validated_data["password"],
         )
-
 
 class CategorySerializer(serializers.ModelSerializer):
     id = serializers.CharField(read_only=True)
