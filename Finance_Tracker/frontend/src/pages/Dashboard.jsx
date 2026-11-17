@@ -28,7 +28,7 @@ function BucketRow({ label, spent, budget_limit, formatMoney }) {
 export default function Dashboard() {
   const navigate = useNavigate()
   const { user, logout } = useAuth()
-  const { currency, setCurrency, formatMoney } = useCurrency()
+  const { currency, setCurrency, formatMoney, toINR, rateMeta, nprPerInr } = useCurrency()
 
   const [data, setData] = useState(null)
   const [categories, setCategories] = useState([])
@@ -52,8 +52,10 @@ export default function Dashboard() {
     customBucket: 'essentials',
     amount: '',
     merchant: '',
-    payment_mode: 'upi',
-    habit_tag: 'planned',
+    payment_mode: 'online',
+    is_recurring: false,
+    recurrence_interval: 1,
+    recurrence_unit: 'month',
     spent_at: new Date().toISOString().slice(0, 16),
   })
 
@@ -103,7 +105,7 @@ export default function Dashboard() {
     try {
       await api.post('/incomes/', {
         ...incomeForm,
-        amount: parseFloat(incomeForm.amount),
+        amount: toINR(parseFloat(incomeForm.amount)),
       })
       setIncomeForm({
         source: '',
@@ -148,10 +150,14 @@ export default function Dashboard() {
 
       await api.post('/expenses/', {
         category: categoryId,
-        amount: parseFloat(expenseForm.amount),
+        amount: toINR(parseFloat(expenseForm.amount)),
         merchant: expenseForm.merchant,
         payment_mode: expenseForm.payment_mode,
-        habit_tag: expenseForm.habit_tag,
+        is_recurring: expenseForm.is_recurring,
+        recurrence_interval: expenseForm.is_recurring
+          ? Number(expenseForm.recurrence_interval) || 1
+          : 1,
+        recurrence_unit: expenseForm.recurrence_unit,
         spent_at: new Date(expenseForm.spent_at).toISOString(),
       })
 
@@ -172,9 +178,16 @@ export default function Dashboard() {
     }
   }
 
-  const summary = data?.summary || { total_income: 0, total_expense: 0, net_savings: 0 }
+  const summary = data?.summary || {
+    total_income: 0,
+    total_expense: 0,
+    net_savings: 0,
+    recurring_total: 0,
+    one_time_total: 0,
+    recurring_count: 0,
+  }
   const budgets = data?.budget_comparison || []
-  const habits = data?.habit_breakdown || []
+  const recurringExpenses = data?.recurring_expenses || []
   const incomes = data?.income_by_source || []
   const recentExpenses = data?.recent_expenses || []
 
@@ -209,7 +222,11 @@ export default function Dashboard() {
         </div>
       </header>
 
-      <p className="hint">Switching currency changes how amounts are displayed; it does not convert them.</p>
+      <p className="hint">
+        Amounts are stored in INR and converted for display at the current NPR/INR rate
+        {` (1 INR = ${Number(nprPerInr).toFixed(2)} NPR).`}
+        {rateMeta.source === 'fallback' ? ' Using an offline fallback rate.' : ''}
+      </p>
 
       {error && <p className="error">{error}</p>}
       {formError && <p className="error" style={{ marginBottom: '1rem' }}>{formError}</p>}
@@ -261,13 +278,26 @@ export default function Dashboard() {
             </div>
 
             <div className="card">
-              <h3>Spending habits</h3>
-              {habits.map((h) => (
-                <div className="row" key={h.habit_tag}>
-                  <span>{h.label}</span>
-                  <strong>{formatMoney(h.total)}</strong>
-                </div>
-              ))}
+              <h3>Recurring / Subscriptions</h3>
+              <p style={{ margin: '0 0 0.5rem', fontWeight: 600 }}>
+                {formatMoney(summary.recurring_total || 0)}
+                <small style={{ marginLeft: '0.4rem', fontWeight: 400 }}>
+                  · {summary.recurring_count || 0} this month
+                </small>
+              </p>
+              {recurringExpenses.length === 0 ? (
+                <p style={{ margin: 0 }}>No recurring expenses this month.</p>
+              ) : (
+                recurringExpenses.map((exp) => (
+                  <div className="row" key={exp.id}>
+                    <span>
+                      {exp.merchant || exp.category_name}
+                      <small> · {exp.recurrence_summary}</small>
+                    </span>
+                    <strong>{formatMoney(exp.amount)}</strong>
+                  </div>
+                ))
+              )}
             </div>
           </div>
 
@@ -304,7 +334,7 @@ export default function Dashboard() {
                       step="0.01"
                       min="0.01"
                       required
-                      placeholder="Amount"
+                      placeholder={`Amount (${currency})`}
                       value={incomeForm.amount}
                       onChange={(e) => setIncomeForm({ ...incomeForm, amount: e.target.value })}
                     />
@@ -369,7 +399,7 @@ export default function Dashboard() {
                       step="0.01"
                       min="0.01"
                       required
-                      placeholder="Amount spent"
+                      placeholder={`Amount spent (${currency})`}
                       value={expenseForm.amount}
                       onChange={(e) =>
                         setExpenseForm({ ...expenseForm, amount: e.target.value })
@@ -415,26 +445,54 @@ export default function Dashboard() {
                     </div>
                   )}
 
-                  <div style={styles.twoCol}>
+                  <input
+                    type="text"
+                    placeholder="What did you spend on? (optional)"
+                    value={expenseForm.merchant}
+                    onChange={(e) =>
+                      setExpenseForm({ ...expenseForm, merchant: e.target.value })
+                    }
+                  />
+
+                  <label style={styles.checkRow}>
                     <input
-                      type="text"
-                      placeholder="What did you spend on? (optional)"
-                      value={expenseForm.merchant}
+                      type="checkbox"
+                      checked={expenseForm.is_recurring}
                       onChange={(e) =>
-                        setExpenseForm({ ...expenseForm, merchant: e.target.value })
+                        setExpenseForm({ ...expenseForm, is_recurring: e.target.checked })
                       }
                     />
-                    <select
-                      value={expenseForm.habit_tag}
-                      onChange={(e) =>
-                        setExpenseForm({ ...expenseForm, habit_tag: e.target.value })
-                      }
-                    >
-                      <option value="planned">Planned</option>
-                      <option value="recurring">Recurring / Subscription</option>
-                      <option value="impulse">Impulse / Unplanned</option>
-                    </select>
-                  </div>
+                    Recurring / Subscription
+                  </label>
+
+                  {expenseForm.is_recurring && (
+                    <div style={styles.twoCol}>
+                      <input
+                        type="number"
+                        min="1"
+                        step="1"
+                        required
+                        placeholder="Every N"
+                        value={expenseForm.recurrence_interval}
+                        onChange={(e) =>
+                          setExpenseForm({
+                            ...expenseForm,
+                            recurrence_interval: e.target.value,
+                          })
+                        }
+                      />
+                      <select
+                        value={expenseForm.recurrence_unit}
+                        onChange={(e) =>
+                          setExpenseForm({ ...expenseForm, recurrence_unit: e.target.value })
+                        }
+                      >
+                        <option value="day">Day(s)</option>
+                        <option value="month">Month(s)</option>
+                        <option value="year">Year(s)</option>
+                      </select>
+                    </div>
+                  )}
 
                   <div style={styles.twoCol}>
                     <select
@@ -443,10 +501,10 @@ export default function Dashboard() {
                         setExpenseForm({ ...expenseForm, payment_mode: e.target.value })
                       }
                     >
-                      <option value="upi">UPI</option>
-                      <option value="card">Card</option>
                       <option value="cash">Cash</option>
+                      <option value="card">Card</option>
                       <option value="netbanking">Net Banking</option>
+                      <option value="online">Online Payment</option>
                     </select>
                     <input
                       type="datetime-local"
@@ -473,7 +531,9 @@ export default function Dashboard() {
                       {t.merchant || t.notes || t.category_name}
                       <small>
                         {' '}
-                        · {t.category_name} · {t.habit_tag_display} · {t.payment_mode_display}
+                        · {t.category_name} ·{' '}
+                        {t.is_recurring ? t.recurrence_summary : 'One-time'} ·{' '}
+                        {t.payment_mode_display}
                       </small>
                     </span>
                     <span>

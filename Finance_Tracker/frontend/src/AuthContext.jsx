@@ -4,6 +4,19 @@ import api from './api'
 const AuthContext = createContext(null)
 export const useAuth = () => useContext(AuthContext)
 
+async function storeBrowserCredential(username, password) {
+  try {
+    const PasswordCredential = window.PasswordCredential
+    if (!PasswordCredential || !navigator.credentials?.store) return
+    await navigator.credentials.store(
+      new PasswordCredential({ id: username, name: username, password }),
+    )
+  } catch {
+    // Some browsers do not support the Credential Management API.
+    // The form's autocomplete attributes still let native password managers help.
+  }
+}
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -28,6 +41,7 @@ export function AuthProvider({ children }) {
     const { data } = await api.post('/token/', { username, password })
     localStorage.setItem('access', data.access)
     localStorage.setItem('refresh', data.refresh)
+    await storeBrowserCredential(username, password)
     await fetchMe()
   }
 

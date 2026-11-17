@@ -1,7 +1,10 @@
 # tracker/views.py
+import json
+import urllib.request
 from collections import defaultdict
 from decimal import Decimal
 
+from django.core.cache import cache
 from django.utils import timezone
 from rest_framework import status, viewsets
 from rest_framework.decorators import api_view, permission_classes
@@ -22,6 +25,54 @@ DEFAULT_CATEGORIES = [
     ("Investment", "investment"),
     ("Miscellaneous", "miscellaneous"),
 ]
+
+EXCHANGE_CACHE_KEY = "inr_npr_exchange_rate"
+EXCHANGE_CACHE_TTL = 60 * 60 * 12  # 12 hours for live rates
+EXCHANGE_FALLBACK_TTL = 60 * 10  # retry sooner when the API is unreachable
+NPR_PER_INR_FALLBACK = Decimal("1.60")
+EXCHANGE_API_URL = "https://open.er-api.com/v6/latest/INR"
+
+
+def _fetch_npr_per_inr():
+    request = urllib.request.Request(
+        EXCHANGE_API_URL, headers={"User-Agent": "FinanceTracker/1.0"}
+    )
+    with urllib.request.urlopen(request, timeout=5) as response:
+        payload = json.load(response)
+    rate = payload.get("rates", {}).get("NPR")
+    if rate is None:
+        raise ValueError("NPR rate missing from exchange rate response")
+    return Decimal(str(rate))
+
+
+@api_view(["GET"])
+@permission_classes([AllowAny])
+def exchange_rate(request):
+    cached = cache.get(EXCHANGE_CACHE_KEY)
+    if cached:
+        return Response(cached)
+
+    updated_at = timezone.now().isoformat()
+    try:
+        rate = _fetch_npr_per_inr()
+        source = "live"
+    except Exception:
+        rate = NPR_PER_INR_FALLBACK
+        source = "fallback"
+
+    data = {
+        "base": "INR",
+        "quote": "NPR",
+        "rate": float(rate),
+        "source": source,
+        "updated_at": updated_at,
+    }
+    cache.set(
+        EXCHANGE_CACHE_KEY,
+        data,
+        EXCHANGE_CACHE_TTL if source == "live" else EXCHANGE_FALLBACK_TTL,
+    )
+    return Response(data)
 
 
 @api_view(["POST"])
@@ -60,8 +111,12 @@ def tracker_choices(request):
     return Response(
         {
             "buckets": [{"value": k, "label": v} for k, v in Category.BUCKET_CHOICES],
-            "habit_tags": [{"value": k, "label": v} for k, v in Expense.HABIT_TAGS],
-            "payment_modes": [{"value": k, "label": v} for k, v in Expense.PAYMENT_MODES],
+            "recurrence_units": [
+                {"value": k, "label": v} for k, v in Expense.RECURRENCE_UNITS
+            ],
+            "payment_modes": [
+                {"value": k, "label": v} for k, v in Expense.PAYMENT_MODES
+            ],
         }
     )
 
@@ -108,18 +163,20 @@ def dashboard(request):
     for inc in incomes:
         income_by_source_map[inc.source] += inc.amount
 
-    # Expense breakdown by category bucket & spending habit
+    # Expense breakdown by category bucket, payment mode & recurrence
     spend_by_bucket = defaultdict(lambda: Decimal("0.00"))
-    spend_by_habit = defaultdict(lambda: Decimal("0.00"))
     spend_by_payment_mode = defaultdict(lambda: Decimal("0.00"))
     merchant_totals = defaultdict(lambda: Decimal("0.00"))
 
     for exp in expenses:
         spend_by_bucket[exp.category.bucket] += exp.amount
-        spend_by_habit[exp.habit_tag] += exp.amount
         spend_by_payment_mode[exp.payment_mode] += exp.amount
         if exp.merchant:
             merchant_totals[exp.merchant] += exp.amount
+
+    recurring_expenses = [exp for exp in expenses if exp.is_recurring]
+    recurring_total = sum((exp.amount for exp in recurring_expenses), Decimal("0.00"))
+    one_time_total = total_expense - recurring_total
 
     # Budget vs. actual per bucket
     budget_map = {b.bucket: b.limit_amount for b in budgets}
@@ -137,15 +194,6 @@ def dashboard(request):
             }
         )
 
-    habit_breakdown = [
-        {
-            "habit_tag": habit_key,
-            "label": habit_label,
-            "total": float(spend_by_habit.get(habit_key, Decimal("0.00"))),
-        }
-        for habit_key, habit_label in Expense.HABIT_TAGS
-    ]
-
     top_merchants = sorted(
         [{"merchant": m, "total": float(amt)} for m, amt in merchant_totals.items()],
         key=lambda x: x["total"],
@@ -158,6 +206,12 @@ def dashboard(request):
         context={"request": request},
     ).data
 
+    recurring_expense_list = ExpenseSerializer(
+        sorted(recurring_expenses, key=lambda e: e.spent_at, reverse=True)[:10],
+        many=True,
+        context={"request": request},
+    ).data
+
     return Response(
         {
             "month": f"{year:04d}-{month:02d}",
@@ -165,9 +219,12 @@ def dashboard(request):
                 "total_income": float(total_income),
                 "total_expense": float(total_expense),
                 "net_savings": float(net_savings),
+                "recurring_total": float(recurring_total),
+                "one_time_total": float(one_time_total),
+                "recurring_count": len(recurring_expenses),
             },
             "budget_comparison": budget_comparison,
-            "habit_breakdown": habit_breakdown,
+            "recurring_expenses": recurring_expense_list,
             "income_by_source": [
                 {"source": src, "total": float(amt)}
                 for src, amt in income_by_source_map.items()

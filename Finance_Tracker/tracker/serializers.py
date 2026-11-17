@@ -8,7 +8,7 @@ User = get_user_model()
 
 class RegisterSerializer(serializers.ModelSerializer):
     id = serializers.CharField(read_only=True)
-    password = serializers.CharField(write_only=True, min_length=6)
+    password = serializers.CharField(write_only=True, min_length=8)
 
     class Meta:
         model = User
@@ -53,8 +53,11 @@ class ExpenseSerializer(serializers.ModelSerializer):
     category = serializers.PrimaryKeyRelatedField(queryset=Category.objects.all())
     category_name = serializers.CharField(source="category.name", read_only=True)
     category_bucket = serializers.CharField(source="category.bucket", read_only=True)
-    habit_tag_display = serializers.CharField(source="get_habit_tag_display", read_only=True)
     payment_mode_display = serializers.CharField(source="get_payment_mode_display", read_only=True)
+    recurrence_unit_display = serializers.CharField(
+        source="get_recurrence_unit_display", read_only=True
+    )
+    recurrence_summary = serializers.CharField(read_only=True)
 
     class Meta:
         model = Expense
@@ -67,8 +70,11 @@ class ExpenseSerializer(serializers.ModelSerializer):
             "merchant",
             "payment_mode",
             "payment_mode_display",
-            "habit_tag",
-            "habit_tag_display",
+            "is_recurring",
+            "recurrence_interval",
+            "recurrence_unit",
+            "recurrence_unit_display",
+            "recurrence_summary",
             "spent_at",
             "notes",
         ]
@@ -78,6 +84,24 @@ class ExpenseSerializer(serializers.ModelSerializer):
         request = self.context.get("request")
         if request and hasattr(request, "user") and request.user.is_authenticated:
             self.fields["category"].queryset = Category.objects.filter(user=request.user)
+
+    def validate(self, attrs):
+        is_recurring = attrs.get(
+            "is_recurring", getattr(self.instance, "is_recurring", False)
+        )
+        if is_recurring:
+            interval = attrs.get(
+                "recurrence_interval",
+                getattr(self.instance, "recurrence_interval", 1),
+            )
+            if interval is None or interval < 1:
+                raise serializers.ValidationError(
+                    {"recurrence_interval": "Must be at least 1."}
+                )
+        else:
+            attrs["recurrence_interval"] = 1
+            attrs["recurrence_unit"] = "month"
+        return attrs
 
     def to_representation(self, instance):
         data = super().to_representation(instance)

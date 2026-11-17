@@ -29,13 +29,29 @@ export default function Register() {
   return (
     <div className="card auth">
       <h1>Create account</h1>
-      <form onSubmit={onSubmit}>
-        <input name="username" placeholder="Username" onChange={onChange} required autoFocus />
-        <input name="email" type="email" placeholder="Email" onChange={onChange} required />
+      <form onSubmit={onSubmit} autoComplete="on">
+        <input
+          name="username"
+          placeholder="Username"
+          autoComplete="username"
+          onChange={onChange}
+          required
+          autoFocus
+        />
+        <input
+          name="email"
+          type="email"
+          placeholder="Email"
+          autoComplete="email"
+          onChange={onChange}
+          required
+        />
         <input
           name="password"
           type="password"
           placeholder="Password (min 8 chars)"
+          autoComplete="new-password"
+          minLength={8}
           onChange={onChange}
           required
         />

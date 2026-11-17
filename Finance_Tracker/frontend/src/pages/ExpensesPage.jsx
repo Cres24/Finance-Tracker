@@ -7,11 +7,11 @@ import api from '../api'
 export default function ExpensesPage() {
   const navigate = useNavigate()
   const { logout } = useAuth()
-  const { currency, setCurrency, formatMoney } = useCurrency()
+  const { currency, setCurrency, formatMoney, toINR } = useCurrency()
 
   const [expenses, setExpenses] = useState([])
   const [categories, setCategories] = useState([])
-  const [habitFilter, setHabitFilter] = useState('all')
+  const [recurringFilter, setRecurringFilter] = useState('all')
   const [showNewCat, setShowNewCat] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -23,8 +23,10 @@ export default function ExpensesPage() {
     category: '',
     amount: '',
     merchant: '',
-    payment_mode: 'upi',
-    habit_tag: 'planned',
+    payment_mode: 'online',
+    is_recurring: false,
+    recurrence_interval: 1,
+    recurrence_unit: 'month',
     spent_at: new Date().toISOString().slice(0, 16),
     notes: '',
   })
@@ -89,7 +91,10 @@ export default function ExpensesPage() {
     try {
       const res = await api.post('/expenses/', {
         ...form,
-        amount: parseFloat(form.amount),
+        amount: toINR(parseFloat(form.amount)),
+        recurrence_interval: form.is_recurring
+          ? Number(form.recurrence_interval) || 1
+          : 1,
         spent_at: new Date(form.spent_at).toISOString(),
       })
       setExpenses((prev) => [res.data, ...prev])
@@ -118,24 +123,24 @@ export default function ExpensesPage() {
   }
 
   const totalSpent = expenses.reduce((sum, item) => sum + Number(item.amount || 0), 0)
-  const impulseSpent = expenses
-    .filter((item) => item.habit_tag === 'impulse')
-    .reduce((sum, item) => sum + Number(item.amount || 0), 0)
   const recurringSpent = expenses
-    .filter((item) => item.habit_tag === 'recurring')
+    .filter((item) => item.is_recurring)
     .reduce((sum, item) => sum + Number(item.amount || 0), 0)
+  const oneTimeSpent = totalSpent - recurringSpent
 
   const filteredExpenses =
-    habitFilter === 'all'
+    recurringFilter === 'all'
       ? expenses
-      : expenses.filter((item) => item.habit_tag === habitFilter)
+      : expenses.filter((item) =>
+          recurringFilter === 'recurring' ? item.is_recurring : !item.is_recurring,
+        )
 
   return (
     <div className="dashboard">
       <header>
         <div>
           <h1>Expense Details</h1>
-          <small>Log expenses and inspect spending habits</small>
+          <small>Log expenses and manage recurring subscriptions</small>
         </div>
         <div className="header-actions">
           <div className="currency-switch" role="group" aria-label="Display currency">
@@ -170,8 +175,8 @@ export default function ExpensesPage() {
           <p>{formatMoney(recurringSpent)}</p>
         </div>
         <div className="card">
-          <h3>Impulse / Unplanned</h3>
-          <p>{formatMoney(impulseSpent)}</p>
+          <h3>One-time Expenses</h3>
+          <p>{formatMoney(oneTimeSpent)}</p>
         </div>
       </div>
 
@@ -240,7 +245,7 @@ export default function ExpensesPage() {
 
               <div style={styles.twoCol}>
                 <label style={styles.label}>
-                  Amount
+                  Amount ({currency})
                   <input
                     type="number"
                     step="0.01"
@@ -253,42 +258,67 @@ export default function ExpensesPage() {
                 </label>
 
                 <label style={styles.label}>
-                  Spending Habit
-                  <select
-                    value={form.habit_tag}
-                    onChange={(e) => setForm({ ...form, habit_tag: e.target.value })}
-                  >
-                    <option value="planned">Planned</option>
-                    <option value="recurring">Recurring / Subscription</option>
-                    <option value="impulse">Impulse / Unplanned</option>
-                  </select>
-                </label>
-              </div>
-
-              <div style={styles.twoCol}>
-                <label style={styles.label}>
-                  Merchant / Vendor
-                  <input
-                    type="text"
-                    placeholder="e.g., BigBasket, Swiggy"
-                    value={form.merchant}
-                    onChange={(e) => setForm({ ...form, merchant: e.target.value })}
-                  />
-                </label>
-
-                <label style={styles.label}>
                   Payment Mode
                   <select
                     value={form.payment_mode}
                     onChange={(e) => setForm({ ...form, payment_mode: e.target.value })}
                   >
-                    <option value="upi">UPI</option>
-                    <option value="card">Card</option>
                     <option value="cash">Cash</option>
+                    <option value="card">Card</option>
                     <option value="netbanking">Net Banking</option>
+                    <option value="online">Online Payment</option>
                   </select>
                 </label>
               </div>
+
+              <label style={styles.checkRow}>
+                <input
+                  type="checkbox"
+                  checked={form.is_recurring}
+                  onChange={(e) => setForm({ ...form, is_recurring: e.target.checked })}
+                />
+                Recurring / Subscription
+              </label>
+
+              {form.is_recurring && (
+                <div style={styles.twoCol}>
+                  <label style={styles.label}>
+                    Repeat every
+                    <input
+                      type="number"
+                      min="1"
+                      step="1"
+                      required
+                      value={form.recurrence_interval}
+                      onChange={(e) =>
+                        setForm({ ...form, recurrence_interval: e.target.value })
+                      }
+                    />
+                  </label>
+
+                  <label style={styles.label}>
+                    Period
+                    <select
+                      value={form.recurrence_unit}
+                      onChange={(e) => setForm({ ...form, recurrence_unit: e.target.value })}
+                    >
+                      <option value="day">Day</option>
+                      <option value="month">Month</option>
+                      <option value="year">Year</option>
+                    </select>
+                  </label>
+                </div>
+              )}
+
+              <label style={styles.label}>
+                Merchant / Vendor
+                <input
+                  type="text"
+                  placeholder="e.g., BigBasket, Swiggy"
+                  value={form.merchant}
+                  onChange={(e) => setForm({ ...form, merchant: e.target.value })}
+                />
+              </label>
 
               <label style={styles.label}>
                 Date & Time
@@ -321,14 +351,13 @@ export default function ExpensesPage() {
           <div style={styles.cardHeader}>
             <h3 style={{ margin: 0 }}>All Expenses ({filteredExpenses.length})</h3>
             <select
-              value={habitFilter}
-              onChange={(e) => setHabitFilter(e.target.value)}
+              value={recurringFilter}
+              onChange={(e) => setRecurringFilter(e.target.value)}
               style={{ padding: '0.3rem 0.55rem', fontSize: '0.85rem' }}
             >
-              <option value="all">All Habits</option>
-              <option value="planned">Planned</option>
+              <option value="all">All Expenses</option>
               <option value="recurring">Recurring</option>
-              <option value="impulse">Impulse</option>
+              <option value="one_time">One-time</option>
             </select>
           </div>
 
@@ -342,7 +371,9 @@ export default function ExpensesPage() {
                 <div>
                   <div>
                     <strong>{exp.merchant || exp.category_name}</strong>
-                    <small style={styles.badge}>{exp.habit_tag_display}</small>
+                    {exp.is_recurring && (
+                      <small style={styles.badge}>{exp.recurrence_summary}</small>
+                    )}
                   </div>
                   <small>
                     {exp.category_name} ({exp.category_bucket}) · {exp.payment_mode_display} ·{' '}
@@ -403,6 +434,13 @@ const styles = {
     display: 'grid',
     gridTemplateColumns: '1fr 1fr',
     gap: '0.6rem',
+  },
+  checkRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.45rem',
+    fontSize: '0.88rem',
+    cursor: 'pointer',
   },
   badge: {
     backgroundColor: '#eff6ff',

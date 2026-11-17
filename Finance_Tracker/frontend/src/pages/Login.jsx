@@ -28,9 +28,23 @@ export default function Login() {
   return (
     <div className="card auth">
       <h1>Log in</h1>
-      <form onSubmit={onSubmit}>
-        <input name="username" placeholder="Username" onChange={onChange} required autoFocus />
-        <input name="password" type="password" placeholder="Password" onChange={onChange} required />
+      <form onSubmit={onSubmit} autoComplete="on">
+        <input
+          name="username"
+          placeholder="Username"
+          autoComplete="username"
+          onChange={onChange}
+          required
+          autoFocus
+        />
+        <input
+          name="password"
+          type="password"
+          placeholder="Password"
+          autoComplete="current-password"
+          onChange={onChange}
+          required
+        />
         {error && <p className="error">{error}</p>}
         <button type="submit" disabled={submitting}>
           {submitting ? 'Logging in...' : 'Log in'}

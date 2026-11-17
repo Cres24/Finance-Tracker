@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
+import { useCurrency } from "../CurrencyContext";
 
 const API_BASE = "http://127.0.0.1:8000/api";
 
 export default function TransactionEntryPage({ onTransactionAdded }) {
+  const { currency, toINR } = useCurrency();
   const [activeTab, setActiveTab] = useState("expense"); // "expense" | "income" | "budget" | "category"
   const [categories, setCategories] = useState([]);
   const [choices, setChoices] = useState({
@@ -11,16 +13,16 @@ export default function TransactionEntryPage({ onTransactionAdded }) {
       { value: "investment", label: "Investment" },
       { value: "miscellaneous", label: "Miscellaneous" },
     ],
-    habit_tags: [
-      { value: "planned", label: "Planned" },
-      { value: "recurring", label: "Recurring / Subscription" },
-      { value: "impulse", label: "Impulse / Unplanned" },
+    recurrence_units: [
+      { value: "day", label: "Day" },
+      { value: "month", label: "Month" },
+      { value: "year", label: "Year" },
     ],
     payment_modes: [
-      { value: "upi", label: "UPI" },
-      { value: "card", label: "Card" },
       { value: "cash", label: "Cash" },
+      { value: "card", label: "Card" },
       { value: "netbanking", label: "Net Banking" },
+      { value: "online", label: "Online Payment" },
     ],
   });
 
@@ -32,8 +34,10 @@ export default function TransactionEntryPage({ onTransactionAdded }) {
     category: "",
     amount: "",
     merchant: "",
-    payment_mode: "upi",
-    habit_tag: "planned",
+    payment_mode: "online",
+    is_recurring: false,
+    recurrence_interval: 1,
+    recurrence_unit: "month",
     spent_at: new Date().toISOString().slice(0, 16), // YYYY-MM-DDTHH:mm
     notes: "",
   });
@@ -137,7 +141,10 @@ export default function TransactionEntryPage({ onTransactionAdded }) {
       "expenses",
       {
         ...expenseForm,
-        amount: parseFloat(expenseForm.amount),
+        amount: toINR(parseFloat(expenseForm.amount)),
+        recurrence_interval: expenseForm.is_recurring
+          ? Number(expenseForm.recurrence_interval) || 1
+          : 1,
         spent_at: new Date(expenseForm.spent_at).toISOString(),
       },
       () =>
@@ -156,7 +163,7 @@ export default function TransactionEntryPage({ onTransactionAdded }) {
       "incomes",
       {
         ...incomeForm,
-        amount: parseFloat(incomeForm.amount),
+        amount: toINR(parseFloat(incomeForm.amount)),
       },
       () =>
         setIncomeForm((prev) => ({
@@ -175,7 +182,7 @@ export default function TransactionEntryPage({ onTransactionAdded }) {
       "budgets",
       {
         bucket: budgetForm.bucket,
-        limit_amount: parseFloat(budgetForm.limit_amount),
+        limit_amount: toINR(parseFloat(budgetForm.limit_amount)),
         month: `${budgetForm.month}-01`, // Matches Django DateField (first day of month)
       },
       () =>
@@ -261,7 +268,7 @@ export default function TransactionEntryPage({ onTransactionAdded }) {
 
           <div style={styles.row}>
             <label style={styles.label}>
-              Amount (₹)
+              Amount ({currency})
               <input
                 type="number"
                 step="0.01"
@@ -274,23 +281,6 @@ export default function TransactionEntryPage({ onTransactionAdded }) {
               />
             </label>
 
-            <label style={styles.label}>
-              Spending Habit
-              <select
-                value={expenseForm.habit_tag}
-                onChange={(e) => setExpenseForm({ ...expenseForm, habit_tag: e.target.value })}
-                style={styles.input}
-              >
-                {choices.habit_tags.map((h) => (
-                  <option key={h.value} value={h.value}>
-                    {h.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-
-          <div style={styles.row}>
             <label style={styles.label}>
               Payment Mode
               <select
@@ -305,18 +295,65 @@ export default function TransactionEntryPage({ onTransactionAdded }) {
                 ))}
               </select>
             </label>
-
-            <label style={styles.label}>
-              Merchant / Vendor
-              <input
-                type="text"
-                placeholder="e.g., BigBasket, Swiggy, Zerodha"
-                value={expenseForm.merchant}
-                onChange={(e) => setExpenseForm({ ...expenseForm, merchant: e.target.value })}
-                style={styles.input}
-              />
-            </label>
           </div>
+
+          <label style={styles.checkboxLabel}>
+            <input
+              type="checkbox"
+              checked={expenseForm.is_recurring}
+              onChange={(e) =>
+                setExpenseForm({ ...expenseForm, is_recurring: e.target.checked })
+              }
+            />
+            Recurring / Subscription
+          </label>
+
+          {expenseForm.is_recurring && (
+            <div style={styles.row}>
+              <label style={styles.label}>
+                Repeat every
+                <input
+                  type="number"
+                  min="1"
+                  step="1"
+                  required
+                  value={expenseForm.recurrence_interval}
+                  onChange={(e) =>
+                    setExpenseForm({ ...expenseForm, recurrence_interval: e.target.value })
+                  }
+                  style={styles.input}
+                />
+              </label>
+
+              <label style={styles.label}>
+                Period
+                <select
+                  value={expenseForm.recurrence_unit}
+                  onChange={(e) =>
+                    setExpenseForm({ ...expenseForm, recurrence_unit: e.target.value })
+                  }
+                  style={styles.input}
+                >
+                  {choices.recurrence_units.map((u) => (
+                    <option key={u.value} value={u.value}>
+                      {u.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          )}
+
+          <label style={styles.label}>
+            Merchant / Vendor
+            <input
+              type="text"
+              placeholder="e.g., BigBasket, Swiggy, Zerodha"
+              value={expenseForm.merchant}
+              onChange={(e) => setExpenseForm({ ...expenseForm, merchant: e.target.value })}
+              style={styles.input}
+            />
+          </label>
 
           <label style={styles.label}>
             Date & Time
@@ -363,7 +400,7 @@ export default function TransactionEntryPage({ onTransactionAdded }) {
 
           <div style={styles.row}>
             <label style={styles.label}>
-              Amount (₹)
+              Amount ({currency})
               <input
                 type="number"
                 step="0.01"
@@ -434,7 +471,7 @@ export default function TransactionEntryPage({ onTransactionAdded }) {
 
           <div style={styles.row}>
             <label style={styles.label}>
-              Monthly Limit (₹)
+              Monthly Limit ({currency})
               <input
                 type="number"
                 step="0.01"
