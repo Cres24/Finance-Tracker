@@ -53,12 +53,22 @@ export default function ChangePasswordPage() {
     }
   }
 
+  const handleLogout = () => {
+    logout()
+    navigate('/login', { replace: true })
+  }
+
   return (
     <div className="dashboard">
       <header>
         <div>
-          <h1>Change Password</h1>
-          {user && <small>Signed in as {user.username}</small>}
+          <h1>Account Settings</h1>
+          {user && (
+            <small>
+              Signed in as <strong>{user.username}</strong>
+              {user.email ? ` (${user.email})` : ''}
+            </small>
+          )}
         </div>
         <div className="header-actions">
           <button type="button" className="logout" onClick={() => navigate('/')}>
@@ -67,53 +77,72 @@ export default function ChangePasswordPage() {
         </div>
       </header>
 
-      <div className="card" style={{ maxWidth: '460px', margin: '1.5rem auto' }}>
-        <form onSubmit={handleSubmit} style={styles.form}>
-          <label style={styles.label}>
-            Current Password
-            <input
-              type="password"
-              required
-              autoComplete="current-password"
-              placeholder="Enter your current password"
-              value={form.old_password}
-              onChange={(e) => setForm({ ...form, old_password: e.target.value })}
-            />
-          </label>
+      <div style={{ maxWidth: '460px', margin: '1.5rem auto', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        <div className="card">
+          <h3>Change Password</h3>
+          <form onSubmit={handleSubmit} style={styles.form}>
+            <label style={styles.label}>
+              Current Password
+              <input
+                type="password"
+                required
+                autoComplete="current-password"
+                placeholder="Enter your current password"
+                value={form.old_password}
+                onChange={(e) => setForm({ ...form, old_password: e.target.value })}
+              />
+            </label>
 
-          <label style={styles.label}>
-            New Password
-            <input
-              type="password"
-              required
-              minLength={6}
-              autoComplete="new-password"
-              placeholder="Enter new password (min 6 characters)"
-              value={form.new_password}
-              onChange={(e) => setForm({ ...form, new_password: e.target.value })}
-            />
-          </label>
+            <label style={styles.label}>
+              New Password
+              <input
+                type="password"
+                required
+                minLength={6}
+                autoComplete="new-password"
+                placeholder="Enter new password (min 6 characters)"
+                value={form.new_password}
+                onChange={(e) => setForm({ ...form, new_password: e.target.value })}
+              />
+            </label>
 
-          <label style={styles.label}>
-            Confirm New Password
-            <input
-              type="password"
-              required
-              minLength={6}
-              autoComplete="new-password"
-              placeholder="Re-enter new password"
-              value={form.confirm_password}
-              onChange={(e) => setForm({ ...form, confirm_password: e.target.value })}
-            />
-          </label>
+            <label style={styles.label}>
+              Confirm New Password
+              <input
+                type="password"
+                required
+                minLength={6}
+                autoComplete="new-password"
+                placeholder="Re-enter new password"
+                value={form.confirm_password}
+                onChange={(e) => setForm({ ...form, confirm_password: e.target.value })}
+              />
+            </label>
 
-          {error && <p className="error">{error}</p>}
-          {success && <p className="success">{success}</p>}
+            {error && <p className="error">{error}</p>}
+            {success && <p className="success">{success}</p>}
 
-          <button type="submit" disabled={saving}>
-            {saving ? 'Updating...' : 'Update Password'}
+            <button type="submit" disabled={saving}>
+              {saving ? 'Updating...' : 'Update Password'}
+            </button>
+          </form>
+        </div>
+
+        <div className="card" style={styles.logoutCard}>
+          <div>
+            <strong>Session</strong>
+            <small style={{ display: 'block', color: 'var(--muted)' }}>
+              Sign out of your account on this device.
+            </small>
+          </div>
+          <button
+            type="button"
+            style={{ background: 'var(--danger)' }}
+            onClick={handleLogout}
+          >
+            Log out
           </button>
-        </form>
+        </div>
       </div>
     </div>
   )
@@ -132,5 +161,11 @@ const styles = {
     fontSize: '0.88rem',
     fontWeight: 600,
     color: 'var(--text-h)',
+  },
+  logoutCard: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: '1rem',
   },
 }

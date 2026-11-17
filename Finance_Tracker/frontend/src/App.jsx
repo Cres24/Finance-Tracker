@@ -60,6 +60,14 @@ export default function App() {
         }
       />
       <Route
+        path="/account"
+        element={
+          <ProtectedRoute>
+            <ChangePasswordPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/change-password"
         element={
           <ProtectedRoute>
