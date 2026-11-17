@@ -16,19 +16,14 @@ import {
   YAxis,
 } from 'recharts'
 import { useAuth } from '../AuthContext'
-import { useCurrency, CURRENCIES } from '../CurrencyContext'
+import { useCurrency } from '../CurrencyContext'
+import CurrencySwitch from '../components/CurrencySwitch'
+import { monthLabel, longMonthLabel } from '../formatMonth'
 import api from '../api'
 
 function currentMonth() {
   const now = new Date()
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
-}
-
-function monthLabel(value) {
-  if (!value) return ''
-  const [year, month] = value.split('-')
-  const date = new Date(Number(year), Number(month) - 1, 1)
-  return date.toLocaleDateString(undefined, { month: 'short', year: '2-digit' })
 }
 
 function renderActiveSlice(props) {
@@ -75,7 +70,7 @@ function StatCard({ label, value, hint, tone }) {
 export default function AnalyticsPage() {
   const navigate = useNavigate()
   const { logout } = useAuth()
-  const { currency, setCurrency, formatMoney, fromINR } = useCurrency()
+  const { currency, formatMoney, fromINR } = useCurrency()
 
   const [month, setMonth] = useState(currentMonth)
   const [trendMonths, setTrendMonths] = useState(6)
@@ -151,19 +146,7 @@ export default function AnalyticsPage() {
           <small>Expense patterns, category mix, and monthly trends</small>
         </div>
         <div className="header-actions">
-          <div className="currency-switch" role="group" aria-label="Display currency">
-            {Object.keys(CURRENCIES).map((code) => (
-              <button
-                key={code}
-                type="button"
-                className={currency === code ? 'active' : ''}
-                aria-pressed={currency === code}
-                onClick={() => setCurrency(code)}
-              >
-                {CURRENCIES[code].label}
-              </button>
-            ))}
-          </div>
+          <CurrencySwitch />
           <button type="button" className="logout" onClick={() => navigate('/')}>
             ← Back to Dashboard
           </button>
@@ -230,9 +213,9 @@ export default function AnalyticsPage() {
 
           {!hasData && (
             <div className="card empty-state">
-              <h3>No activity for {monthLabel(data.month)}</h3>
+              <h3>No activity for {longMonthLabel(data.month)}</h3>
               <p>Add some income or expenses to see category colors, trends, and budgets here.</p>
-              <button type="button" onClick={() => navigate('/transactions')}>
+              <button type="button" onClick={() => navigate('/expenses')}>
                 Add a transaction
               </button>
             </div>

@@ -14,8 +14,10 @@ import {
   ReferenceLine,
 } from 'recharts'
 import { useAuth } from '../AuthContext'
-import { useCurrency, CURRENCIES } from '../CurrencyContext'
+import { useCurrency } from '../CurrencyContext'
 import { CATEGORY_COLORS, nextCategoryColor } from '../categoryColors'
+import CurrencySwitch from '../components/CurrencySwitch'
+import { longMonthLabel } from '../formatMonth'
 import api from '../api'
 
 const BUCKET_COLORS = {
@@ -50,7 +52,7 @@ function BucketRow({ label, spent, budget_limit, formatMoney }) {
 export default function Dashboard() {
   const navigate = useNavigate()
   const { user, logout } = useAuth()
-  const { currency, setCurrency, formatMoney, toINR, rateMeta, nprPerInr } = useCurrency()
+  const { currency, formatMoney, toINR, rateMeta, nprPerInr } = useCurrency()
 
   const [data, setData] = useState(null)
   const [categories, setCategories] = useState([])
@@ -294,23 +296,14 @@ export default function Dashboard() {
     <div className="dashboard">
       <header>
         <div>
-          <h1>Finance Tracker</h1>
-          {data && <small>{data.month}</small>}
+          <h1 className="pop-title">
+            <span style={{ '--i': 0 }}>Finance</span>{' '}
+            <span style={{ '--i': 1 }}>Tracker</span>
+          </h1>
+          {data && <small>{longMonthLabel(data.month)}</small>}
         </div>
         <div className="header-actions">
-          <div className="currency-switch" role="group" aria-label="Display currency">
-            {Object.keys(CURRENCIES).map((code) => (
-              <button
-                key={code}
-                type="button"
-                className={currency === code ? 'active' : ''}
-                aria-pressed={currency === code}
-                onClick={() => setCurrency(code)}
-              >
-                {CURRENCIES[code].label}
-              </button>
-            ))}
-          </div>
+          <CurrencySwitch />
           <button type="button" onClick={() => navigate('/analytics')}>
             Analytics
           </button>
@@ -549,7 +542,7 @@ export default function Dashboard() {
               ))}
             </div>
 
-            <div className="card">
+            <div className="card card-zoom">
               <h3>Recurring / Subscriptions</h3>
               <p style={{ margin: '0 0 0.5rem', fontWeight: 600 }}>
                 {formatMoney(summary.recurring_total || 0)}
@@ -576,7 +569,7 @@ export default function Dashboard() {
           {/* BOTTOM TWO COLUMNS: INCOME SOURCES & RECENT EXPENSES */}
           <div className="grid2">
             {/* LEFT COLUMN: INCOME SOURCES + ADD INCOME */}
-            <div className="card">
+            <div className="card card-zoom">
               <div style={styles.cardHeader}>
                 <h3 style={{ margin: 0 }}>Income sources</h3>
                 <button
@@ -648,7 +641,7 @@ export default function Dashboard() {
             </div>
 
             {/* RIGHT COLUMN: RECENT EXPENSES + ADD EXPENSE */}
-            <div className="card">
+            <div className="card card-zoom">
               <div style={styles.cardHeader}>
                 <h3 style={{ margin: 0 }}>Recent expenses</h3>
                 <button
