@@ -146,7 +146,7 @@ export default function IncomePage() {
               />
             </label>
 
-            <div style={styles.twoCol}>
+            <div className="form-grid2">
               <label style={styles.label}>
                 Amount ({currency})
                 <input

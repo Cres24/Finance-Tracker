@@ -337,7 +337,7 @@ export default function Dashboard() {
                     value={incomeForm.source}
                     onChange={(e) => setIncomeForm({ ...incomeForm, source: e.target.value })}
                   />
-                  <div style={styles.twoCol}>
+                  <div className="form-grid2">
                     <input
                       type="number"
                       step="0.01"
@@ -402,7 +402,7 @@ export default function Dashboard() {
 
               {showExpenseForm && (
                 <form onSubmit={handleAddExpense} style={styles.inlineForm}>
-                  <div style={styles.twoCol}>
+                  <div className="form-grid2">
                     <input
                       type="number"
                       step="0.01"
@@ -432,7 +432,7 @@ export default function Dashboard() {
 
                   {(expenseForm.category === '__custom__' || categories.length === 0) && (
                     <>
-                      <div style={styles.twoCol}>
+                      <div className="form-grid2">
                         <input
                           type="text"
                           required
@@ -518,7 +518,7 @@ export default function Dashboard() {
                   </label>
 
                   {expenseForm.is_recurring && (
-                    <div style={styles.twoCol}>
+                    <div className="form-grid2">
                       <input
                         type="number"
                         min="1"
@@ -546,7 +546,7 @@ export default function Dashboard() {
                     </div>
                   )}
 
-                  <div style={styles.twoCol}>
+                  <div className="form-grid2">
                     <select
                       value={expenseForm.payment_mode}
                       onChange={(e) =>

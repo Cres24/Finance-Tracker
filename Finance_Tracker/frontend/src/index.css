@@ -23,6 +23,7 @@
 body {
   margin: 0;
   min-height: 100vh;
+  overflow-x: hidden;
 }
 
 a {
@@ -34,11 +35,13 @@ a {
   padding: 1.25rem;
   border-radius: 10px;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+  min-width: 0;
 }
 
 .auth {
   max-width: 360px;
   margin: 10vh auto;
+  padding: 1.25rem;
 }
 
 .auth h1 {
@@ -55,12 +58,18 @@ a {
 input,
 select,
 textarea {
+  width: 100%;
+  min-width: 0;
   padding: 0.6rem;
   border: 1px solid var(--border);
   border-radius: 6px;
   font: inherit;
   background: var(--card-bg);
   color: var(--text-h);
+}
+
+input[type='checkbox'] {
+  width: auto;
 }
 
 input:focus,
@@ -78,6 +87,7 @@ button {
   color: #fff;
   font: inherit;
   cursor: pointer;
+  white-space: nowrap;
 }
 
 button:disabled {
@@ -101,7 +111,7 @@ button:disabled {
 }
 
 .dashboard {
-  max-width: 900px;
+  max-width: 960px;
   margin: 2rem auto;
   padding: 0 1rem 2rem;
 }
@@ -118,7 +128,7 @@ button:disabled {
 .dashboard header h1 {
   margin: 0;
   color: var(--text-h);
-  font-size: 1.75rem;
+  font-size: clamp(1.35rem, 2.5vw, 1.75rem);
 }
 
 .dashboard header small,
@@ -171,7 +181,7 @@ button:disabled {
 
 .stats {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 1rem;
   margin-bottom: 1rem;
 }
@@ -184,10 +194,11 @@ button:disabled {
 }
 
 .stats p {
-  font-size: 1.5rem;
+  font-size: clamp(1.2rem, 2.2vw, 1.5rem);
   margin: 0;
   color: var(--text-h);
   font-weight: 600;
+  overflow-wrap: anywhere;
 }
 
 .stats .pos {
@@ -200,9 +211,15 @@ button:disabled {
 
 .grid2 {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 1rem;
   margin-bottom: 1rem;
+}
+
+.form-grid2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
 }
 
 .card h3 {
@@ -213,6 +230,7 @@ button:disabled {
 .row {
   display: flex;
   justify-content: space-between;
+  align-items: flex-start;
   gap: 1rem;
   padding: 0.5rem 0;
   border-bottom: 1px solid var(--border);
@@ -220,6 +238,18 @@ button:disabled {
 
 .row:last-child {
   border-bottom: 0;
+}
+
+.row > span:first-child,
+.row > div:first-child {
+  min-width: 0;
+  word-break: break-word;
+}
+
+.row > strong:last-child,
+.row > span:last-child {
+  flex-shrink: 0;
+  text-align: right;
 }
 
 .bucket {
@@ -233,6 +263,8 @@ button:disabled {
 .bucket-top {
   display: flex;
   justify-content: space-between;
+  align-items: baseline;
+  flex-wrap: wrap;
   gap: 0.5rem;
   margin-bottom: 0.35rem;
 }
@@ -251,13 +283,6 @@ button:disabled {
 
 .bar-fill.over {
   background: var(--danger);
-}
-
-@media (max-width: 640px) {
-  .stats,
-  .grid2 {
-    grid-template-columns: 1fr;
-  }
 }
 
 /* Analytics */
@@ -298,7 +323,7 @@ button:disabled {
 
 .stat-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 1rem;
   margin-bottom: 1rem;
 }
@@ -333,7 +358,7 @@ button:disabled {
 
 .chart-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 1rem;
   margin-bottom: 1rem;
 }
@@ -350,6 +375,7 @@ button:disabled {
 
 .trend-card {
   margin-bottom: 1rem;
+  min-width: 0;
 }
 
 .donut-layout {
@@ -557,9 +583,14 @@ button:disabled {
   margin: 0 0 1rem;
 }
 
+/* Tablet breakpoint */
 @media (max-width: 900px) {
+  .grid2 {
+    grid-template-columns: 1fr;
+  }
+
   .stat-grid {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .chart-grid,
@@ -568,9 +599,34 @@ button:disabled {
   }
 }
 
+/* Mobile phone breakpoint */
 @media (max-width: 640px) {
-  .stat-grid {
+  .dashboard {
+    margin: 1rem auto;
+    padding: 0 0.75rem 2rem;
+  }
+
+  .card {
+    padding: 1rem;
+  }
+
+  .auth {
+    margin: 5vh 0.75rem;
+  }
+
+  .stats,
+  .stat-grid,
+  .form-grid2 {
     grid-template-columns: 1fr;
+  }
+
+  .header-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .row {
+    flex-wrap: wrap;
   }
 
   .analytics-toolbar {
