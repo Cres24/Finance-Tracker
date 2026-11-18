@@ -20,8 +20,11 @@ from dotenv import load_dotenv
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Local development reads Finance_Tracker/.env. On Vercel the variables are
-# injected by the platform, so no file is needed there.
-load_dotenv(BASE_DIR / ".env")
+# injected by the platform, so the file is never loaded there.
+ON_VERCEL = bool(os.environ.get("VERCEL"))
+
+if not ON_VERCEL:
+    load_dotenv(BASE_DIR / ".env")
 
 
 def env_list(name, default=""):
@@ -35,6 +38,22 @@ SECRET_KEY = os.environ.get("SECRET_KEY", "dev-only-insecure-secret-key")
 DEBUG = os.environ.get("DEBUG", "false").lower() == "true"
 
 ALLOWED_HOSTS = env_list("ALLOWED_HOSTS", "localhost,127.0.0.1")
+CSRF_TRUSTED_ORIGINS = env_list("CSRF_TRUSTED_ORIGINS")
+
+if ON_VERCEL:
+    from django.core.exceptions import ImproperlyConfigured
+
+    if not os.environ.get("SECRET_KEY"):
+        raise ImproperlyConfigured("SECRET_KEY must be set in the Vercel project.")
+    if not os.environ.get("MONGODB_URI"):
+        raise ImproperlyConfigured("MONGODB_URI must be set in the Vercel project.")
+
+    # Accept the production alias and every preview/deployment URL.
+    ALLOWED_HOSTS.append(".vercel.app")
+    for host_var in ("VERCEL_URL", "VERCEL_PROJECT_PRODUCTION_URL"):
+        if host := os.environ.get(host_var):
+            ALLOWED_HOSTS.append(host)
+    CSRF_TRUSTED_ORIGINS.append("https://*.vercel.app")
 
 
 # Application definition
@@ -71,8 +90,6 @@ CORS_ALLOWED_ORIGINS = env_list(
     "CORS_ALLOWED_ORIGINS",
     "http://localhost:5173,http://127.0.0.1:5173",
 )
-
-CSRF_TRUSTED_ORIGINS = env_list("CSRF_TRUSTED_ORIGINS")
 
 # Vercel terminates TLS and forwards the original scheme.
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")

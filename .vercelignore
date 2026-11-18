@@ -3,3 +3,7 @@
 **/__pycache__/
 **/*.pyc
 Finance_Tracker/frontend/dist/
+
+# Never upload local secrets. Vercel CLI does not apply .gitignore.
+.env
+.env.*
