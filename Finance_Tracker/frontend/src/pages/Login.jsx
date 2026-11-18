@@ -1,107 +1,57 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../AuthContext'
-import api from '../api'
 
-export default function Register() {
-  const navigate = useNavigate()
+export default function Login() {
   const { login } = useAuth()
-
-  const [form, setForm] = useState({
-    username: '',
-    email: '',
-    password: '',
-    confirmPassword: '',
-  })
+  const navigate = useNavigate()
+  const [form, setForm] = useState({ username: '', password: '' })
   const [error, setError] = useState('')
-  const [loading, setLoading] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
 
-  const handleSubmit = async (e) => {
+  const onChange = (e) => setForm({ ...form, [e.target.name]: e.target.value })
+
+  const onSubmit = async (e) => {
     e.preventDefault()
     setError('')
-
-    if (form.password !== form.confirmPassword) {
-      setError('Passwords do not match.')
-      return
-    }
-
-    setLoading(true)
+    setSubmitting(true)
     try {
-      await api.post('/auth/register/', {
-        username: form.username,
-        email: form.email,
-        password: form.password,
-        password2: form.confirmPassword,
-      })
-
-      // Automatically log the user in after registration if login helper is available
-      if (login) {
-        await login(form.username, form.password)
-        navigate('/', { replace: true })
-      } else {
-        navigate('/login', { replace: true })
-      }
-    } catch (err) {
-      const data = err.response?.data
-      if (data && typeof data === 'object') {
-        const firstMsg = Object.values(data).flat()[0]
-        setError(typeof firstMsg === 'string' ? firstMsg : 'Registration failed.')
-      } else {
-        setError('Registration failed. Please check your details.')
-      }
+      await login(form.username, form.password)
+      navigate('/', { replace: true })
+    } catch {
+      setError('Invalid username or password')
     } finally {
-      setLoading(false)
+      setSubmitting(false)
     }
   }
 
   return (
-    <div className="auth card">
-      <h1>Create Account</h1>
-      <form onSubmit={handleSubmit}>
+    <div className="card auth">
+      <h1>Log in</h1>
+      <form onSubmit={onSubmit} autoComplete="on">
         <input
-          type="text"
-          required
+          name="username"
           placeholder="Username"
           autoComplete="username"
-          value={form.username}
-          onChange={(e) => setForm({ ...form, username: e.target.value })}
-        />
-        <input
-          type="email"
+          onChange={onChange}
           required
-          placeholder="Email"
-          autoComplete="email"
-          value={form.email}
-          onChange={(e) => setForm({ ...form, email: e.target.value })}
+          autoFocus
         />
         <input
+          name="password"
           type="password"
-          required
-          minLength={6}
           placeholder="Password"
-          autoComplete="new-password"
-          value={form.password}
-          onChange={(e) => setForm({ ...form, password: e.target.value })}
-        />
-        <input
-          type="password"
+          autoComplete="current-password"
+          onChange={onChange}
           required
-          minLength={6}
-          placeholder="Confirm Password"
-          autoComplete="new-password"
-          value={form.confirmPassword}
-          onChange={(e) => setForm({ ...form, confirmPassword: e.target.value })}
         />
-
         {error && <p className="error">{error}</p>}
-
-        <button type="submit" disabled={loading}>
-          {loading ? 'Creating account...' : 'Register'}
+        <button type="submit" disabled={submitting}>
+          {submitting ? 'Logging in...' : 'Log in'}
         </button>
       </form>
-
-      <p style={{ marginTop: '1rem', fontSize: '0.9rem' }}>
-        Already have an account? <Link to="/login">Log in</Link>
+      <p>
+        No account? <Link to="/register">Register</Link>
       </p>
     </div>
   )

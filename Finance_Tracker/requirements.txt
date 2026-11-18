@@ -7,4 +7,5 @@ djangorestframework-simplejwt==5.5.1
 dnspython==2.9.2
 pyjwt==2.15.1
 pymongo==4.20.0
+python-dotenv==1.2.4
 sqlparse==0.6.1

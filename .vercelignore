@@ -1,0 +1,5 @@
+.venv/
+**/node_modules/
+**/__pycache__/
+**/*.pyc
+Finance_Tracker/frontend/dist/
